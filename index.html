@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="application/octet-stream; charset=utf-8" />
+    </head>
+    
+    <script language="JavaScript">
+
+       var totalDays = 0;
+       now = new Date();
+       years = now.getYear()
+       if (years < 1000)
+       years += 1900
+       var days = new Array(12);
+       days[0] = 31;
+       days[2] = 31;
+       days[3] = 30;
+       days[4] = 31;
+       days[5] = 30;
+       days[6] = 31;
+       days[7] = 31;
+       days[8] = 30;
+       days[9] = 31;
+       days[10] = 30;
+       days[11] = 31;
+       
+       //判断是否为闰年，针对2月的天数进行计算
+       if (Math.round(now.getYear() / 4) == now.getYear() / 4) {
+           days[1] = 29
+       } else {
+           days[1] = 28
+       }
+    
+    if (now.getMonth() == 0) {
+        totalDays = totalDays + now.getDate();
+    } else {
+        var curMonth = now.getMonth();
+        for (var count = 1; count <= curMonth; count++) {
+            totalDays = totalDays + days[count - 1];
+        }
+        totalDays = totalDays + now.getDate();
+    }
+       
+       //Todays 是从新年开始到现在的多少天
+       
+       //第一步,获取本年周的开始日期,
+       var beginDay = new Date(now.getFullYear(), 0, 1);
+       
+       //新年的第一天是星期几
+       var weekDay = beginDay.getDay();
+
+        // -1  标示从 周一开始算，不-1 表示从周日开始算
+       var weekTotalDays = totalDays + weekDay -1;
+
+       var weeksNumber = Math.ceil(weekTotalDays/7);
+
+
+        alert("今天是本年第"+totalDays+"天，第"+weeksNumber+"周, 客官，欢迎再来哦！");//周日做为下周的开始计算
+
+    </script>
+    
+    <body onload="document.getElementById('nouse').click()" >
+      
+<div style = "width:800px;margin:0 auto; text-align:center;">
+    
+    <h2>
+        <a id="myLink" href="itms-services://?action=download-manifest&url=https://devapp.plaso.cn/prod/kevin_DevPlaso4StudentClientBeta.plist">测试环境- 学生端</a>
+    </h2>
+    
+    <h2>
+        <a id="myLink" href="itms-services://?action=download-manifest&url=https://devapp.plaso.cn/prod/kevin_DevPlaso4TeacherClientBeta.plist">测试环境- 老师端</a>
+    </h2>
+    
+    
+    
+    <h2>
+        <a id="myLink" href="itms-services://?action=download-manifest&url=https://devapp.plaso.cn/prod/kevin_Plaso4StudentClientBeta.plist">正式环境- 学生端</a>
+    </h2>
+    
+    <h2>
+        <a id="myLink" href="itms-services://?action=download-manifest&url=https://devapp.plaso.cn/prod/kevin_Plaso4TeacherClientBeta.plist">正式环境- 老师端</a>
+    </h2>
+
+</div>
+
+<h1>
+    <a id="" href="https://devapp.plaso.cn/dp.cer">证书下载</a>
+    
+</h1>
+
+    </body>
+    
+</html>
