@@ -1,0 +1,91 @@
+= JavaScript Promise迷你书（中文版）
+azu
+:author:      原著：azu / 翻译：liubin、kaku、honnkyou
+:authorinitials: azu
+:keywords:    JavaScript, ECMAScript, Promise, 日语, 中文, 使用方法, 教程, 参考手册
+:description: 基于JavaScript Promise进行异步编程的基本使用方法以及测试的编写方法、应用及反模式等内容的文档。
+:revnumber:   {bookversion}
+:homepage:    http://azu.github.io/promises-book/
+:source:      https://github.com/azu/promises-book
+:lang:        ja
+:icons:       font
+:docinfo1:
+:numbered!:
+:toc2:
+
+// {bookversion} passing from outside
+
+ifeval::["{backend}" == "html5"]
+++++
+<div class="github-ribbon">
+<a href="https://github.com/liubin/promises-book/"><img style="border: 0;" src="https://camo.githubusercontent.com/38ef81f8aca64bb9a64448d0d70f1308ef5341ab/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f6461726b626c75655f3132313632312e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" /></a>
+</div>
+++++
+
+icon:twitter[2x, link=https://twitter.com/search?q=%23Promise%E6%9C%AC] Hash tag https://twitter.com/search?q=%23Promise%E8%BF%B7%E4%BD%A0%E4%B9%A6[#Promise迷你书]
+
+
+icon:rss[2x, link=https://github.com/azu/promises-book/releases.atom] 可以从这里 https://github.com/azu/promises-book/releases.atom[RSS] 得到更新信息
+
+++++
+<div class="social-button-wrapper">
+<iframe src="http://ghbtns.com/github-btn.html?user=azu&repo=promises-book&type=watch&count=true"
+  allowtransparency="true" frameborder="0" scrolling="0" width="100" height="20"></iframe>
+
+<a href="https://twitter.com/share" class="twitter-share-button" data-url="http://azu.github.io/promises-book/" data-lang="ja" data-hashtags="Promise本">Tweet</a>
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+
+</div>
+++++
+
+本书以Creative Commons Attribution-NonCommercial https://github.com/azu/promises-book/#license[许可证]发布。
+另外你也可以从下面的链接下载PDF版本。
+
+++++
+<div class="download-area">
+<a class="download-button pdf" id="download-pdf" href="http://liubin.github.io/promises-book/javascript-promise-book.pdf" download="javascript-promise-book.pdf">下载本书PDF版本</a>
+<a class="download-button source-code" href="https://github.com/liubin/promises-book/">下载本书源代码</a>
+</div>
+++++
+
+关于本电子书的创作过程有兴趣的读者，可以下载这个文档供参考（日文版） https://gumroad.com/l/javascript-promise[制作过程]。
+
+- image:./public/img/gumroad-green.svg[（日文版）附录下载, link="https://gumroad.com/l/javascript-promise"] https://gumroad.com/l/javascript-promise[（日文版）附录下载]
+- 本书开始编写的原因，如何编写的，以及编写过程是如何运作的。
+- 可以在Gumroad上以包括0元在内的任何价格购买本附录内容。
+- 如果你想捐赠，也可以通过本附录链接以任意的价格购买本附录的方式进行。
+
+'''
+
+endif::[]
+
+// <<< PAGE BREAK 只对PDF有效
+<<<
+
+// 各章内容从H1标记开始，进行一个缩进
+:leveloffset: 1
+
+// 前言
+include::Ch0_Introduction/readme.adoc[]
+
+// 各章序号从1开始
+:numbered:
+
+// 第一章
+include::Ch1_WhatsPromises/readme.adoc[]
+
+// 第二章
+include::Ch2_HowToWrite/readme.adoc[]
+
+// 第三章
+include::Ch3_Testing/readme.adoc[]
+
+// 第四章
+include::Ch4_AdvancedPromises/readme.adoc[]
+
+
+// 参考
+include::Appendix-Reference/readme.adoc[]
+
+// 术语集
+include::Appendix-Glossary/readme.adoc[]

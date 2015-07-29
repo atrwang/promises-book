@@ -1,0 +1,135 @@
+[[promise-is-always-async]]
+== 专栏: Promise只能进行异步操作？
+
+在使用<<Promise.resolve, `Promise.resolve(value)`>> 等方法的时候，如果promise对象立刻就能进入resolve状态的话，那么你是不是觉得 `.then` 里面指定的方法就是同步调用的呢？
+
+实际上， `.then` 中指定的方法调用是异步进行的。
+
+[role="executable"]
+[source,javascript]
+----
+var promise = new Promise(function (resolve){
+    console.log("inner promise"); // 1
+    resolve(42);
+});
+promise.then(function(value){
+    console.log(value); // 3
+});
+console.log("outer promise"); // 2
+----
+
+执行上面的代码会输出下面的log，从这些log我们清楚地知道了上面代码的执行顺序。
+
+----
+inner promise // 1
+outer promise // 2
+42            // 3
+----
+
+由于JavaScript代码会按照文件的从上到下的顺序执行，所以最开始 `<1>` 会执行，然后是 `resolve(42);` 被执行。这时候 `promise` 对象的已经变为确定状态，FulFilled被设置为了 `42` 。
+
+下面的代码 `promise.then` 注册了 `<3>` 这个回调函数，这是本专栏的焦点问题。
+
+由于 `promise.then` 执行的时候promise对象已经是确定状态，从程序上说对回调函数进行同步调用也是行得通的。
+
+但是即使在调用 `promise.then` 注册回调函数的时候promise对象已经是确定的状态，Promise也会以异步的方式调用该回调函数，这是在Promise设计上的规定方针。
+
+因此 `<2>` 会最先被调用，最后才会调用回调函数 `<3>` 。
+
+为什么要对明明可以以同步方式进行调用的函数，非要使用异步的调用方式呢？
+
+=== 同步调用和异步调用同时存在导致的混乱
+
+其实在Promise之外也存在这个问题，这里我们以一般的使用情况来考虑此问题。
+
+这个问题的本质是接收回调函数的函数，会根据具体的执行情况，可以选择是以同步还是异步的方式对回调函数进行调用。
+
+下面我们以 `onReady(fn)` 为例进行说明，这个函数会接收一个回调函数进行处理。
+
+
+[role="executable"]
+[source,javascript]
+[[mixed-onready.js]]
+.mixed-onready.js
+----
+include::embed/embed-mixed-onready.js[]
+----
+
+<<mixed-onready.js>>会根据执行时DOM是否已经装载完毕来决定是对回调函数进行同步调用还是异步调用。
+
+如果在调用onReady之前DOM已经载入的话::
+    对回调函数进行同步调用
+如果在调用onReady之前DOM还没有载入的话::
+    通过注册 `DOMContentLoaded` 事件监听器来对回调函数进行异步调用
+
+因此，如果这段代码在源文件中出现的位置不同，在控制台上打印的log消息顺序也会不同。
+
+为了解决这个问题，我们可以选择统一使用异步调用的方式。
+
+[role="executable"]
+[source,javascript]
+[[async-onready.js]]
+.async-onready.js
+----
+include::embed/embed-async-onready.js[]
+----
+
+关于这个问题，在 http://effectivejs.com/[Effective JavaScript] 的 **第67项 不要对异步回调函数进行同步调用** 中也有详细介绍。
+
+[quote, David Herman, Effective JavaScript]
+____
+- 绝对不能对异步回调函数（即使在数据已经就绪）进行同步调用。
+- 如果对异步回调函数进行同步调用的话，处理顺序可能会与预期不符，可能带来意料之外的后果。
+- 对异步回调函数进行同步调用，还可能导致栈溢出或异常处理错乱等问题。
+- 如果想在将来某时刻调用异步回调函数的话，可以使用 `setTimeout` 等异步API。
+____
+
+前面我们看到的 `promise.then` 也属于此类，为了避免上述中同时使用同步、异步调用可能引起的混乱问题，Promise在规范上规定 **Promise只能使用异步调用方式** 。
+
+最后，如果将上面的 `onReady` 函数用Promise重写的话，代码如下面所示。
+
+[role="executable"]
+[source,javascript]
+[[onready-as-promise.js]]
+.onready-as-promise.js
+----
+include::embed/embed-onready-as-promise.js[]
+----
+
+由于Promise保证了每次调用都是以异步方式进行的，所以我们在实际编码中不需要调用 `setTimeout` 来自己实现异步调用。
+
+////
+也就是说，刚才的代码可以用下面的模拟代码重写。
+
+[role="executable"]
+[source,javascript]
+----
+var promise = new Promise(function taskA(resolve){
+    console.log("inner promise"); // 1
+    resolve(42);
+});
+promise.then(function(arg){
+    setTimeout(function(value){
+       console.log(value); // 3
+   }.bind(this, arg), 0);
+});
+console.log("outer promise"); // 2
+----
+
+可以看出在`promise.then` 中注册的回调函数都是以异步方式进行调用的。
+
+[NOTE]
+====
+在实际运用的时候我们不需要使用 `setTimeout` 或 `setImmediate` 等进行显示的异步方法调用。从设计上来说， `promise.then` 方法会将回调函数进行 `EnqueueTask` 操作，即将这个函数插入到队列中去。
+====
+
+假如Promise使用同步的方式对回调函数进行调用的话，在调用 `promise.then` 的时候promise的状态已经确定，如果使用同步调用方式的话，运行结果将会像下面一样。
+
+----
+inner promise
+42
+outer promise
+----
+
+结论就是，Promise中的调用都是异步进行的。
+////

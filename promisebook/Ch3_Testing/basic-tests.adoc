@@ -1,0 +1,161 @@
+[[basic-tests]]
+== 基本测试
+
+关于<<es6-promises,ES6 Promises>>的语法我们已经学了一些，
+我想大家应该也能够在实际项目中编写Promise 的Demo代码了吧。
+
+这时，接下来你可能要苦恼该如何编写Promise 的测试代码了。
+
+那么让我们先来学习下如何使用 http://mochajs.org/[Mocha]来对Promise 进行基本的测试吧。
+
+先声明一下，这章中涉及的测试代码都是运行在Node.js环境下的。
+
+[NOTE]
+本书中出现的示例代码也都有相应的测试代码。
+测试代码可以参考 https://github.com/azu/promises-book[azu/promises-book] 。
+
+=== Mocha
+
+Mocha是Node.js下的测试框架工具,在这里，我们并不打算对 http://mochajs.org/[Mocha]本身进行详细讲解。对
+http://mochajs.org/[Mocha]感兴趣的读者可以自行学习。
+
+Mocha可以自由选择BDD、TDD、exports中的任意风格，测试中用到的Assert 方法也同样可以跟任何其他类库组合使用。
+也就是说，Mocha本身只提供执行测试时的框架，而其他部分则由使用者自己选择。
+
+这里我们选择使用Mocha，主要基于下面3点理由。
+
+* 它是非常著名的测试框架
+* 支持基于Node.js 和浏览器的测试
+* 支持"Promise测试"
+
+最后至于为什么说 _支持"Promise测试"_ ，这个我们在后面再讲。
+
+要想在本章中使用Mocha，我们需要先通过npm来安装Mocha。
+
+[source,console]
+----
+$ npm install -g mocha
+----
+
+另外，Assert库我们使用的是Node.js自带的`assert`模块，所以不需要额外安装。
+
+首先，让我们试着编写一个对传统回调风格的异步函数进行测试的代码。
+
+=== 回调函数风格的测试
+
+如果想使用回调函数风格来对一个异步处理进行测试，使用Mocha的话代码如下所示。
+
+[source,javascript]
+.basic-test.js
+----
+include::embed/embed-basic-test.js[]
+----
+
+将这段代码保存为 `basic-test.js`，之后就可以使用刚才安装的Mocha的命令行工具进行测试了。
+
+[source,sh]
+----
+$ mocha basic-test.js
+----
+
+Mocha的 `it` 方法指定了 `done` 参数，在 `done()` 函数被执行之前，
+该测试一直处于等待状态，这样就可以对异步处理进行测试。
+
+Mocha中的异步测试，将会按照下面的步骤执行。
+
+[source,javascript]
+[[callback-style-test]]
+----
+it("should use `done` for test", function (done) {
+    // <1>
+    setTimeout(function () {
+        assert(true);
+        done();// <2>
+    }, 0);
+});
+----
+<1> 回调式的异步处理
+<2> 调用`done` 后测试结束
+
+这也是一种非常常见的实现方式。
+
+[[done-promise-test]]
+=== 使用`done` 的Promise测试
+
+接下来，让我们看看如何使用 `done` 来进行Promise测试。
+
+[source,javascript]
+----
+it("should use `done` for test?", function (done) {
+    var promise = Promise.resolve(42);// <1>
+    promise.then(function (value) {
+        assert(value === 42);
+        done();// <2>
+    });
+});
+----
+<1> 创建名为`Fulfilled` 的promise对象
+<2> 调用`done` 后测试结束
+
+
+<<Promise.resolve, `Promise.resolve`>> 用来返回promise对象，
+返回的promise对象状态为FulFilled。
+最后，通过 `.then` 设置的回调函数也会被调用。
+
+像<<promise-is-always-async,专栏: Promise只能进行异步操作？>> 中已经提到的那样，
+promise对象的调用总是异步进行的，所以测试也同样需要以异步调用的方式来编写。
+
+但是，在前面的测试代码中，在`assert` 失败的情况下就会出现问题。
+
+[source,javascript]
+[[promise-assert-fail]]
+.对异常promise测试
+----
+it("should use `done` for test?", function (done) {
+    var promise = Promise.resolve();
+    promise.then(function (value) {
+        assert(false);// => throw AssertionError
+        done();
+    });
+});
+----
+
+在此次测试中 `assert` 失败了，所以你可能认为应该抛出“测试失败”的错误，
+而实际情况却是测试并不会结束，直到超时。
+
+.由于测试不会结束，所以直到发生超时时间未知，一直会处于挂起状态。
+image::img/promise-test-timeout.png[promise test timeout]
+
+通常情况下，`assert` 失败的时候，会throw一个error，
+测试框架会捕获该error，来判断测试失败。
+
+但是，Promise的情况下 `.then` 绑定的函数执行时发生的error
+会被Promise捕获，而测试框架则对此error将会一无所知。
+
+我们来改善一下<<promise-assert-fail,`assert` 失败的promise测试>>，
+让它能正确处理 `assert` 失败时的测试结果。
+
+[source,javascript]
+[[promise-assert-fail-fixed]]
+.测试正常失败的示例
+----
+it("should use `done` for test?", function (done) {
+    var promise = Promise.resolve();
+    promise.then(function (value) {
+        assert(false);
+    }).then(done, done);
+});
+----
+
+在上面测试正常失败的示例中，为了确保 `done` 一定会被调用，
+我们在最后添加了 `.then(done, done);` 语句。
+
+`assert` 测试通过（成功）时会调用 `done()` ，而 `assert` 失败时则调用 `done(error)` 。
+
+这样，我们就编写出了和 <<callback-style-test, 回调函数风格的测试>> 相同的Promise测试。
+
+但是，为了处理 `assert` 失败的情况，我们需要额外添加 `.then(done, done);` 的代码。
+这就要求我们在编写Promise测试时要格外小心，忘了加上上面语句的话，很可能就会写出一个永远不会返回直到超时的测试代码。
+
+
+在下一节，让我们接着学习一下最初提到的使用Mocha理由中的支持"Promises测试"究竟是一种什么机制。

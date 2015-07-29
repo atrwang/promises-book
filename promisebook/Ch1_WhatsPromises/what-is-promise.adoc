@@ -1,0 +1,63 @@
+[[what-is-promise]]
+== 什么是Promise
+
+首先让我们来了解一下到底什么是Promise。
+
+Promise是抽象异步处理对象以及对其进行各种操作的组件。
+其详细内容在接下来我们还会进行介绍，Promise并不是从JavaScript中发祥的概念。
+
+Promise最初被提出是在 http://erights.org/elib/distrib/pipeline.html[E语言]中，
+它是基于并列/并行处理设计的一种编程语言。
+
+现在JavaScript也拥有了这种特性，这就是本书所介绍的JavaScript Promise。
+
+另外，如果说到基于JavaScript的异步处理，我想大多数都会想到利用回调函数。
+
+[source,javascript]
+使用了回调函数的异步处理
+----
+getAsync("fileA.txt", function(error, result){// <1>
+    if(error){// 取得失败时的处理
+        throw error;
+    }
+    // 取得成功时的处理
+});
+----
+<1> 传给回调函数的参数为(error对象， 执行结果)组合
+
+Node.js等则规定在JavaScript的回调函数的第一个参数为 `Error` 对象，这也是它的一个惯例。
+
+像上面这样基于回调函数的异步处理如果统一参数使用规则的话，写法也会很明了。
+但是，这也仅是编码规约而已，即使采用不同的写法也不会出错。
+
+而Promise则是把类似的异步处理对象和处理规则进行规范化，
+并按照采用统一的接口来编写，而采取规定方法之外的写法都会出错。
+
+[source,javascript]
+下面是使用了Promise进行异步处理的一个例子
+----
+var promise = getAsyncPromise("fileA.txt"); // <1>
+promise.then(function(result){
+    // 获取文件内容成功时的处理
+}).catch(function(error){
+    // 获取文件内容失败时的处理
+});
+----
+<1> 返回promise对象
+
+我们可以向这个预设了抽象化异步处理的promise对象，
+注册这个promise对象执行成功时和失败时相应的回调函数。
+
+这和回调函数方式相比有哪些不同之处呢？
+在使用promise进行一步处理的时候，我们必须按照接口规定的方法编写处理代码。
+
+也就是说，除promise对象规定的方法(这里的 `then` 或 `catch`)以外的方法都是不可以使用的，
+而不会像回调函数方式那样可以自己自由的定义回调函数的参数，而必须严格遵守固定、统一的编程方式来编写代码。
+
+这样，基于Promise的统一接口的做法，
+就可以形成基于接口的各种各样的异步处理模式。
+
+所以，promise的功能是可以将复杂的异步处理轻松地进行模式化，
+这也可以说得上是使用promise的理由之一。
+
+接下来，让我们在实践中来学习JavaScript的Promise吧。

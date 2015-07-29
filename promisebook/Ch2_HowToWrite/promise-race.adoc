@@ -1,0 +1,40 @@
+[[ch2-promise-race]]
+== Promise.race
+
+接着我们来看看和 <<Promise.all, `Promise.all`>> 类似的对多个promise对象进行处理的 <<Promise.race, `Promise.race`>> 方法。
+
+它的使用方法和Promise.all一样，接收一个promise对象数组为参数。
+
+`Promise.all` 在接收到的所有的对象promise都变为 FulFilled 或者 Rejected 状态之后才会继续进行后面的处理，
+与之相对的是 `Promise.race` 只要有一个promise对象进入 FulFilled 或者 Rejected 状态的话，就会继续进行后面的处理。
+
+像Promise.all时的例子一样，我们来看一个带计时器的 `Promise.race` 的使用例子。
+
+[role="executable"]
+[source,javascript]
+[[promise-race-timer.js]]
+.promise-race-timer.js
+----
+include::embed/embed-promise-race-timer.js[]
+----
+
+上面的代码创建了4个promise对象，这些promise对象会分别在1ms，32ms，64ms和128ms后变为确定状态，即FulFilled，并且在第一个变为确定状态的1ms后， `.then` 注册的回调函数就会被调用，这时候确定状态的promise对象会调用 `resolve(1)` 因此传递给 `value` 的值也是1，控制台上会打印出`1`来。
+
+下面我们再来看看在第一个promise对象变为确定（FulFilled）状态后，它之后的promise对象是否还在继续运行。
+
+[role="executable"]
+[source,javascript]
+[[promise-race-other.js]]
+.promise-race-other.js
+----
+include::embed/embed-promise-race-other.js[]
+----
+
+我们在前面代码的基础上增加了 `console.log` 用来输出调试信息。
+
+执行上面代码的话，我们会看到 winnter和loser promise对象的 `setTimeout` 方法都会执行完毕， `console.log` 也会分别输出它们的信息。
+
+也就是说， <<Promise.race, `Promise.race`>> 在第一个promise对象变为Fulfilled之后，并不会取消其他promise对象的执行。
+
+[NOTE]
+在 <<es6-promises,ES6 Promises>> 规范中，也没有取消（中断）promise对象执行的概念，我们必须要确保promise最终进入resolve or reject状态之一。也就是说Promise并不适用于 <<promise-states, 状态>> 可能会固定不变的处理。也有一些类库提供了对promise进行取消的操作。

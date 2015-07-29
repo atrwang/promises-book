@@ -1,0 +1,112 @@
+[[controllable-tests]]
+== 编写可控测试（controllable tests）
+
+在继续进行说明之前，我们先来定义一下什么是可控测试。在这里我们对可控测试的定义如下。
+
+待测试的promise对象
+
+* 如果编写预期为Fulfilled状态的测试的话
+** Rejected的时候要 **Fail**
+** assertion 的结果不一致的时候要 **Fail**
+* 如果预期为Rejected状态的话
+** 结果为Fulfilled 测试为 **Fail**
+** assertion 的结果不一致的时候要 **Fail**
+
+如果一个测试能网罗上面的用例（Fail）项，那么我们就称其为可控测试。
+
+也就是说，一个测试用例应该包括下面的测试内容。
+
+* 结果满足 Fulfilled or Rejected 之一
+* 对传递给assertion的值进行检查
+
+在前面使用了 `.then` 的代码就是一个期望结果为 Rejected 的测试。
+
+[source,javascript]
+----
+promise.then(failTest, function(error){
+    // 通过assert验证error对象
+    assert(error instanceof Error);
+});
+----
+
+=== 必须明确指定转换后的状态
+
+为了编写有效的测试代码， 我们需要明确指定 <<promise-states,promise的状态>> 为
+Fulfilled or Rejected 的两者之一。
+
+但是由于 `.then` 的话在调用的时候可以省略参数，有时候可能会忘记加入使测试失败的条件。
+
+因此，我们可以定义一个helper函数，用来明确定义promise期望的状态。
+
+[NOTE]
+====
+笔者（原著者）创建了一个类库 https://github.com/azu/promise-test-helper[azu/promise-test-helper] 以方便对Promise进行测试，本文中使用的是这个类库的简略版。
+====
+
+首先我们创建一个名为 `shouldRejected` 的helper函数，用来在刚才的 `.then` 的例子中，期待测试返回状态为 onRejected 的结果的例子。
+
+[[shouldRejected-test.js]]
+.shouldRejected-test.js
+[source,javascript]
+----
+include::embed/embed-shouldRejected-test.js[]
+----
+
+`shouldRejected` 函数接收一个promise对象作为参数，并且返回一个带有 `catch` 方法的对象。
+
+在这个 `catch` 中可以使用和 onRejected 里一样的代码，因此我们可以在 `catch` 使用基于 assertion 方法的测试代码。
+
+在 `shouldRejected` 外部，都是类似如下、和普通的promise处理大同小异的代码。
+
+. 将需要测试的promise对象传递给 `shouldRejected` 方法
+. 在返回的对象的 `catch` 方法中编写进行onRejected处理的代码
+. 在onRejected里使用assertion进行判断
+
+在使用 `shouldRejected` 函数的时候，如果是 Fulfilled 被调用了的话，则会throw一个异常，测试也会失败。
+
+[source,javascript]
+----
+promise.then(failTest, function(error){
+    assert(error.message === 'human error');
+});
+// == 几乎这两段代码是同样的意思
+shouldRejected(promise).catch(function (error) {
+    assert(error.message === 'human error');
+});
+----
+
+使用 `shouldRejected` 这样的helper函数，测试代码也会变得很直观。
+
+.Promise onRejected test
+image::img/promise-test.png[Promise onRejected test]
+
+像上面一样，我们也可以编写一个测试promise对象期待结果为Fulfilled的 `shouldFulfilled` helper函数。
+
+[[shouldFulfilled-test.js]]
+.shouldFulfilled-test.js
+[source,javascript]
+----
+include::embed/embed-shouldFulfilled-test.js[]
+----
+
+这和上面的 <<shouldRejected-test.js>> 结构基本相同，只不过返回对象的 `catch` 方法变为了 `then` ，promise.then的两个参数也调换了。
+
+=== 小结
+
+在本小节我们学习了如何编写针对Promise特定状态的测试代码，以及如何使用便于测试的helper函数。
+
+[NOTE]
+====
+这里我们使用到的 `shouldFulfilled` 和 `shouldRejected` 也可以在下面的类库中找到。
+
+https://github.com/azu/promise-test-helper[azu/promise-test-helper]。
+====
+
+此外，本小节中的helper方法都是以 <<mocha-promise,Mocha对Promise的支持>> 为前提的，
+在 <<done-promise-test,基于`done` 的测试>> 中使用的话可能会比较麻烦。
+
+是使用基于测试框架对Promis的支持，还是使用基于类似`done` 这样回调风格的测试方式，每个人都可以自由的选择，只是风格问题，我觉得倒没必要去争一个孰优孰劣。
+
+比如在 http://coffeescript.org/[CoffeeScript]下进行测试的话，由于CoffeeScript 会隐式的使用return返回，所以使用 `done` 的话可能更容易理解一些。
+
+对Promise进行测试比对通常的异步函数进行测试坑更多，虽说采取什么样的测试方法是个人的自由，但是在同一项目中采取前后风格一致的测试则是非常重要。

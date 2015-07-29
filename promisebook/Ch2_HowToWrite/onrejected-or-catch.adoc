@@ -1,0 +1,71 @@
+[[then-or-catch]]
+== then or catch?
+
+在 <<catch-as-alias,上一章>> 里，我们说过 <<promise.catch,`.catch`>> 也可以理解为 `promise.then(undefined, onRejected)` 。
+
+在本书里我们还是会将 <<promise.catch,`.catch`>> 和 <<promise.then,`.then`>> 分开使用来进行错误处理的。
+
+此外我们也会学习一下，在 `.then` 里同时指定处理对错误进行处理的函数相比，和使用 `catch` 又有什么异同。
+
+=== 不能进行错误处理的onRejected
+
+我们看看下面的这段代码。
+
+[role="executable"]
+[source,javascript]
+[[then-throw-error.js]]
+.then-throw-error.js
+----
+include::embed/embed-then-throw-error.js[]
+// 运行示例
+badMain(function(){
+    console.log("BAD");
+});
+goodMain(function(){
+    console.log("GOOD");
+});
+----
+
+在上面的代码中， `badMain` 是一个不太好的实现方式（但也不是说它有多坏）， `goodMain` 则是一个能非常好的进行错误处理的版本。
+
+为什么说 `badMain` 不好呢？，因为虽然我们在 `.then` 的第二个参数中指定了用来错误处理的函数，但实际上它却不能捕获第一个参数 `onFulfilled` 指定的函数（本例为 `throwError` ）里面出现的错误。
+
+也就是说，这时候即使 `throwError` 抛出了异常，`onRejected` 指定的函数也不会被调用（即不会输出"BAD"字样）。
+
+与此相对的是， `goodMain` 的代码则遵循了 `throwError`->`onRejected` 的调用流程。
+这时候 `throwError` 中出现异常的话，在会被方法链中的下一个方法，即 `.catch` 所捕获，进行相应的错误处理。
+
+`.then` 方法中的onRejected参数所指定的回调函数，实际上针对的是其promise对象或者之前的promise对象，而不是针对 
+`.then` 方法里面指定的第一个参数，即onFulfilled所指向的对象，这也是 `then` 和 `catch` 表现不同的原因。
+
+[NOTE]
+====
+`.then` 和 `.catch` 都会创建并返回一个 **新的** promise对象。
+Promise实际上每次在方法链中增加一次处理的时候所操作的都不是完全相同的promise对象。
+====
+
+[[then-catch-flow]]
+.Then Catch flow
+image::img/then_catch.png[Then Catch flow]
+
+这种情况下 `then` 是针对 `Promise.resolve(42)` 的处理，在`onFulfilled` 中发生异常，在同一个 `then` 方法中指定的 `onRejected` 也不能捕获该异常。
+
+在这个 `then` 中发生的异常，只有在该方法链后面出现的 `catch` 方法才能捕获。
+
+当然，由于 `.catch` 方法是 `.then` 的别名，我们使用 `.then` 也能完成同样的工作。只不过使用 `.catch` 的话意图更明确，更容易理解。
+
+[source,javascript]
+Promise.resolve(42).then(throwError).then(null, onRejected);
+
+=== 总结
+
+这里我们又学习到了如下一些内容。
+
+. 使用`promise.then(onFulfilled, onRejected)` 的话
+    * 在 `onFulfilled` 中发生异常的话，在 `onRejected` 中是捕获不到这个异常的。
+. 在 `promise.then(onFulfilled).catch(onRejected)` 的情况下
+    * `then` 中产生的异常能在 `.catch` 中捕获
+. <<promise.then,`.then`>> 和 <<promise.catch,`.catch`>> 在本质上是没有区别的
+    * 需要分场合使用。
+
+我们需要注意如果代码类似 `badMain` 那样的话，就可能出现程序不会按预期运行的情况，从而不能正确的进行错误处理。

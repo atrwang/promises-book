@@ -1,0 +1,14 @@
+[[chapter3-promise-testing]]
+= Chapter.3 - Promise测试
+:imagesdir: Ch3_Testing
+
+这章我们学习如果编写Promise 的测试代码
+
+// Promise基础测试
+include::basic-tests.adoc[]
+
+// Mocha与Promise
+include::mocha-promise.adoc[]
+
+// 编写可控测试（Controllable Tests）
+include::controllable-tests.adoc[]

@@ -1,0 +1,211 @@
+[[promise-done]]
+== 什么是 Promise.prototype.done ？
+
+如果你使用过其他的Promise实现类库的话，可能见过用`done`代替`then`的例子。
+
+这些类库都提供了 `Promise.prototype.done` 方法，使用起来也和 `then` 一样，但是这个方法并不会返回promise对象。
+
+虽然 <<es6-promises,ES6 Promises>>和<<promises-aplus,Promises/A+>>等在设计上并没有对`Promise.prototype.done` 做出任何规定，但是很多实现类库都提供了该方法的实现。
+
+在本小节中，我们将会学习什么是 `Promise.prototype.done` ，以及为什么很多类库都提供了对该方法的支持。
+
+=== 使用done的代码示例
+
+看一下实际使用done的代码的例子的话，应该就非常容易理解 `done` 方法的行为了。
+
+[role="executable"]
+[source,javascript]
+[[promise-done-example.js]]
+.promise-done-example.js
+----
+include::embed/embed-promise-done-example.js[]
+// => 请打开浏览器的开发者工具中的控制台窗口看一下
+----
+
+在前面我们已经说过，promise设计规格并没有对 `Promise.prototype.done`做出任何规定，因此在使用的时候，你可以使用已有类库提供的实现，也可以自己去实现。
+
+我们会在后面讲述如何去自己实现，首先我们这里先对使用 `then` 和使用 `done`这两种方式进行一下比较。
+
+[role="executable"]
+[source,javascript]
+.使用then的场景
+----
+var promise = Promise.resolve();
+promise.then(function () {
+    JSON.parse("this is not json");
+}).catch(function (error) {
+    console.error(error);// => "SyntaxError: JSON.parse"
+});
+----
+
+从上面我们可以看出，两者之间有以下不同点。
+
+* `done` 并不返回promise对象
+** 也就是说，在done之后不能使用 `catch` 等方法组成方法链
+* `done` 中发生的异常会被直接抛给外面
+** 也就是说，不会进行Promise的错误处理（Error Handling）
+
+由于`done` 不会返回promise对象，所以我们不难理解它只能出现在一个方法链的最后。
+
+此外，我们已经介绍过了Promise具有强大的错误处理机制，而`done`则会在函数中跳过错误处理，直接抛出异常。
+
+为什么很多类库都提供了这个和Promise功能相矛盾的函数呢？看一下下面Promise处理失败的例子，也许我们多少就能理解其中原因了吧。
+
+=== 消失的错误
+
+Promise虽然具备了强大的错误处理机制，但是（调试工具不能顺利运行的时候）这个功能会导致人为错误（human error）更加复杂，这也是它的一个缺点。
+
+也许你还记得，我们在 <<then-or-catch,then or catch?>> 中也看到了类似的内容。
+
+像下面那样，我们看一个能返回promise对象的函数。
+
+[source,javascript]
+[[json-promise.js]]
+.json-promise.js
+----
+include::embed/embed-json-promise.js[]
+----
+
+这个函数将接收到的参数传递给 `JSON.parse` ，并返回一个基于`JSON.parse`的promise对象。
+
+我们可以像下面那样使用这个Promise函数，由于 `JSON.parse` 会解析失败并抛出一个异常，该异常会被 `catch` 捕获。
+
+[role="executable"]
+[source,javascript]
+----
+include::embed/embed-json-promise.js[]
+// 运行示例
+var string = "非合法json编码字符串";
+JSONPromise(string).then(function (object) {
+    console.log(object);
+}).catch(function(error){
+    // => JSON.parse抛出异常时
+    console.error(error);
+});
+----
+
+如果这个解析失败的异常被正常捕获的话则没什么问题，但是如果编码时忘记了处理该异常，一旦出现异常，那么查找异常发生的源头将会变得非常棘手，这就是使用promise需要注意的一面。
+
+[source,javascript]
+.忘记了使用catch进行异常处理的的例子
+----
+var string = "非合法json编码字符串";
+JSONPromise(string).then(function (object) {
+    console.log(object);
+}); // <1>
+----
+<1> 虽然抛出了异常，但是没有对该异常进行处理
+
+如果是`JSON.parse` 这样比较好找的例子还算好说，如果是拼写错误的话，那么发生了Syntax Error错误的话将会非常麻烦。
+
+[source,javascript]
+.typo错误
+----
+var string = "{}";
+JSONPromise(string).then(function (object) {
+    conosle.log(object);// <1>
+});
+----
+<1> 存在conosle这个拼写错误
+
+这这个例子里，我们错把 `console` 拼成了 `conosle` ，因此会发生如下错误。
+
+> ReferenceError: conosle is not defined
+
+但是，由于Promise的try-catch机制，这个问题可能会被内部消化掉。
+如果在调用的时候每次都无遗漏的进行 `catch` 处理的话当然最好了，但是如果在实现的过程中出现了这个例子中的错误的话，那么进行错误排除的工作也会变得困难。
+
+这种错误被内部消化的问题也被称为 __unhandled rejection__ ，从字面上看就是在Rejected时没有找到相应处理的意思。
+
+[NOTE]
+====
+这种unhandled rejection错误到底有多难检查，也依赖于Promise的实现。
+比如 https://github.com/yahoo/ypromise[ypromise] 在检测到 unhandled rejection 错误的时候，会在控制台上提示相应的信息。
+
+> Promise rejected but no error handlers were registered to it
+
+另外， https://github.com/petkaantonov/bluebird[Bluebird] 在比较明显的人为错误，即ReferenceError等错误的时候，会直接显示到控制台上。
+
+> "Possibly unhandled ReferenceError. conosle is not defined
+
+原生（Native）的 Promise实现为了应对同样问题，提供了GC-based unhandled rejection tracking功能。
+
+该功能是在promise对象被垃圾回收器回收的时候，如果是unhandled rejection的话，则进行错误显示的一种机制。
+
+https://twitter.com/domenic/status/461154989856264192[Firefox] 或 https://code.google.com/p/v8/issues/detail?id=3093[Chrome] 的原生Promise都进行了部分实现。
+====
+
+=== done的实现
+
+作为方法论，在Promise中 `done` 是怎么解决上面提到的错误被忽略呢？
+其实它的方法很简单直接，那就是必须要进行错误处理。
+
+由于可以在 Promise上实现 `done` 方法，因此我们看看如何对 `Promise.prototype.done` 这个Promise的prototype进行扩展。
+
+[source,javascript]
+[[promise-prototype-done.js]]
+.promise-prototype-done.js
+----
+include::lib/promise-prototype-done.js[]
+----
+
+那么它是如何将异常抛到Promise的外面的呢？其实这里我们利用的是在setTimeout中使用throw方法，直接将异常抛给了外部。
+
+[source,javascript]
+.setTimeout的回调函数中抛出异常
+----
+try{
+    setTimeout(function callback() {
+        throw new Error("error");// <1>
+    }, 0);
+}catch(error){
+    console.error(error);
+}
+----
+<1> 这个例外不会被捕获
+
+[NOTE]
+====
+关于为什么异步的`callback`中抛出的异常不会被捕获的原因，可以参考下面内容。
+
+- http://techblog.yahoo.co.jp/programming/javascript_error/[JavaScript和异步错误处理 - Yahoo! JAPAN Tech Blog（日语博客）]
+====
+
+仔细看一下 <<promise-prototype-done.js,`Promise.prototype.done`>>的代码，我们会发现这个函数什么也没 `return` 。
+也就是说， `done`按照「Promise chain在这里将会中断，如果出现了异常，直接抛到promise外面即可」的原则进行了处理。
+
+如果实现和运行环境实现的比较完美的话，就可以进行 __unhandled rejection__ 检测，`done`也不一定是必须的了。
+另外像本小节中的 <<promise-prototype-done.js,`Promise.prototype.done`>>一样，`done`也可以在既有的Promise之上进行实现，也可以说它没有进入到
+<<es6-promises,ES6 Promises>>的设计规范之中。
+
+[NOTE]
+本文中的 `Promise.prototype.done` 的实现方法参考了 https://www.promisejs.org/[promisejs.org] 。
+
+=== 总结
+
+在本小节中，我们学习了 https://github.com/kriskowal/q/wiki/API-Reference#promisedoneonfulfilled-onrejected-onprogress[Q] 、 https://github.com/petkaantonov/bluebird[Bluebird] 和 https://github.com/cscott/prfun#promisedone--undefined[prfun] 等Promise类库提供的 `done` 的基础和实现细节，以及`done`方法和 `then` 方法有什么区别等内容。
+
+我们也学到了 `done` 有以下两个特点。
+
+* `done` 中出现的错误会被作为异常抛出
+* 终结 Promise chain
+
+和 <<then-or-catch,then or catch?>> 中说到的一样，由Promise内部消化掉的错误，随着调试工具或者类库的改进，大多数情况下也许已经不是特别大的问题了。
+
+此外，由于 `done` 不会有返回值，因此不能在它之后进行方法链的创建，为了实现Promise方法风格上的统一，我们也可以使用`done`方法。
+
+<<es6-promises,ES6 Promises>> 本身提供的功能并不是特别多。
+因此，我想很多时候可能需要我们自己进行扩展或者使用第三方类库。
+
+我们好不容易将异步处理统一采用Promise进行统一处理，但是如果做过头了，也会将系统变得特别复杂，因此，保持风格的统一是Promise作为抽象对象非常重要的部分。
+
+[NOTE]
+====
+在 http://blog.getify.com/promises-part-4/[Promises: The Extension Problem (part 4) | getiblog] 中，介绍了一些如何编写Promise扩展程序的方法。
+
+* 扩展 `Promise.prototype` 的方法
+* 利用 Wrapper/Delegate 创建抽象层
+
+此外，关于 Delegate 的详细使用方法，也可以参考 http://speakingjs.com/es5/ch28.html[Chapter 28. Subclassing Built-ins] ，那里有详细的说明。
+
+====

@@ -1,0 +1,17 @@
+[[resouce-link]]
+= 参考网站
+
+https://github.com/w3ctag/promises-guide[w3ctag/promises-guide]::
+    Promises指南 - 这里有很多关于概念方面的说明
+
+https://github.com/domenic/promises-unwrapping[domenic/promises-unwrapping]::
+    ES6 Promises规范的repo - 可以通过查看issue来了解各种关于规范的来龙去脉和信息
+
+http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects[ECMAScript Language Specification ECMA-262 6th Edition – DRAFT]::
+    ES6 Promises的规范 - 如果想参考关于ES6 Promises的规范，则应该先看这里
+
+http://www.html5rocks.com/en/tutorials/es6/promises/?redirect_from_locale=ja[JavaScript Promises: There and back again - HTML5 Rocks]::
+    关于Promises的文章 - 这里的示例代码和参考（reference）的完成度都很高
+
+http://d.hatena.ne.jp/jovi0608/20140319/1395199285[Node.js Promise再次降临！ - ぼちぼち日記]::
+    关于Node.js和Promise的文章 - __thenable__部分参考了本文

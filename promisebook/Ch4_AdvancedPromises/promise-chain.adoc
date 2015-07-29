@@ -1,0 +1,229 @@
+[[promise-and-method-chain]]
+== Promise和方法链（method chain）
+
+在Promise中你可以将 `then` 和 `catch` 等方法连在一起写。这非常像DOM或者jQuery中的方法链。
+
+一般的方法链都通过返回 `this` 将多个方法串联起来。
+
+[NOTE]
+====
+关于如何创建方法链，可以从参考 http://taiju.hatenablog.com/entry/20100307/1267962826[方法链的创建方法 - 余味（日语博客）] 等资料。
+====
+
+另一方面，由于Promise <<then-return-new-promise, 每次都会返回一个新的promise对象>> ，所以从表面上看和一般的方法链几乎一模一样。
+
+在本小节里，我们会在不改变已有采用方法链编写的代码的外部接口的前提下，学习如何在内部使用Promise进行重写。
+
+=== fs中的方法链
+
+我们下面将会以 http://nodejs.org/api/fs.html[Node.js中的fs] 为例进行说明。
+
+此外，这里的例子我们更重视代码的易理解性，因此从实际上来说这个例子可能并不算太实用。
+
+[source,javascript]
+[[fs-method-chain.js]]
+.fs-method-chain.js
+----
+include::src/promise-chain/fs-method-chain.js[]
+----
+
+这个模块可以将类似下面的 read -> transform -> write 这一系列处理，通过组成一个方法链来实现。
+
+[source,javascript]
+----
+var File = require("./fs-method-chain");
+var inputFilePath = "input.txt",
+    outputFilePath = "output.txt";
+File.read(inputFilePath)
+    .transform(function (content) {
+        return ">>" + content;
+    })
+    .write(outputFilePath);
+----
+
+`transform` 接收一个方法作为参数，该方法对其输入参数进行处理。在这个例子里，我们对通过read读取的数据在前面加上了 `>>` 字符串。
+
+=== 基于Promise的fs方法链
+
+下面我们就在不改变刚才的<<fs-method-chain.js,方法链>>对外接口的前提下，采用Promise对内部实现进行重写。
+
+[source,javascript]
+[[fs-promise-chain.js]]
+.fs-promise-chain.js
+----
+include::src/promise-chain/fs-promise-chain.js[]
+----
+
+新增加的`then` 和`catch`都可以看做是指向内部保存的promise对象的别名，而其它部分从对外接口的角度来说都没有改变，使用方法也和原来一样。
+
+因此，在使用这个模块的时候我们只需要修改 `require` 的模块名即可。
+
+[source,javascript]
+----
+var File = require("./fs-promise-chain");
+var inputFilePath = "input.txt",
+    outputFilePath = "output.txt";
+File.read(inputFilePath)
+    .transform(function (content) {
+        return ">>" + content;
+    })
+    .write(outputFilePath);
+----
+
+`File.prototype.then` 方法会调用
+`this.promise.then` 方法，并将返回的promise对象赋值给了 `this.promise` 变量这个内部promise对象。
+
+这究竟有什么奥妙么？通过以下的伪代码，我们可以更容易理解这背后发生的事情。
+
+[source,javascript]
+----
+var File = require("./fs-promise-chain");
+File.read(inputFilePath)
+    .transform(function (content) {
+        return ">>" + content;
+    })
+    .write(outputFilePath);
+// => 处理流程类似以下的伪代码
+promise.then(function read(){
+        return fs.readFileSync(filePath, "utf-8");
+    }).then(function transform(content) {
+         return ">>" + content;
+    }).then(function write(){
+        return fs.writeFileSync(filePath, data);
+    });
+----
+
+看到 `promise = promise.then(...)` 这种写法，会让人以为`promise`的值会被覆盖，也许你会想是不是promise的chain被截断了。
+
+你可以想象为类似 `promise = addPromiseChain(promise, fn);` 这样的感觉，我们为promise对象**增加**了新的处理，并返回了这个对象，因此即使自己不实现顺序处理的话也不会带来什么问题。
+
+=== 两者的区别
+
+==== 同步和异步
+
+要说<<fs-method-chain.js>>和<<fs-promise-chain.js,Promise版>>两者之间的差别，最大的不同那就要算是同步和异步了。
+
+如果在类似 <<fs-method-chain.js>> 的方法链中加入队列等处理的话，就可以实现几乎和异步方法链同样的功能，但是实现将会变得非常复杂，所以我们选择了简单的同步方法链。
+
+Promise版的话如同在 <<promise-is-always-async,专栏: Promise只能进行异步处理？>>里介绍过的一样，只会进行异步操作，因此使用了promise的方法链也是异步的。
+
+==== 错误处理
+
+虽然<<fs-method-chain.js>>里面并不包含错误处理的逻辑，
+但是由于是同步操作，因此可以将整段代码用 `try-catch` 包起来。
+
+在 <<fs-promise-chain.js,Promise版>> 提供了指向内部promise对象的`then` 和 `catch` 别名，所以我们可以像其它promise对象一样使用`catch`来进行错误处理。
+
+[source,javascript]
+.fs-promise-chain中的错误处理
+----
+var File = require("./fs-promise-chain");
+File.read(inputFilePath)
+    .transform(function (content) {
+        return ">>" + content;
+    })
+    .write(outputFilePath)
+    .catch(function(error){
+        console.error(error);
+    });
+----
+
+如果你想在<<fs-method-chain.js>>中自己实现异步处理的话，错误处理可能会成为比较大的问题；可以说在进行异步处理的时候，还是使用Promise实现起来比较简单。
+
+=== Promise之外的异步处理
+
+如果你很熟悉Node.js的話，那么看到方法链的话，你是不是会想起来 http://nodejs.org/api/stream.html[Stream] 呢。
+
+如果使用 http://nodejs.org/api/stream.html[Stream] 的话，就可以免去了保存 `this.lastValue` 的麻烦，还能改善处理大文件时候的性能。
+另外，使用Stream的话可能会比使用Promise在处理速度上会快些。
+
+[source,javascript]
+.使用Stream进行read->transform->write
+----
+readableStream.pipe(transformStream).pipe(writableStream);
+----
+
+因此，在异步处理的时候并不是说Promise永远都是最好的选择，要根据自己的目的和实际情况选择合适的实现方式。
+
+NOTE: Node.js的Stream是一种基于Event的技术
+
+关于Node.js中Stream的详细信息可以参考以下网页。
+
+* http://jxck.hatenablog.com/entry/20111204/1322966453[利用Node.js Stream API对数据进行流式处理 - Block Rockin’ Codes]
+* http://www.slideshare.net/shigeki_ohtsu/stream2-kihon[Stream2基础]
+* http://www.slideshare.net/shigeki_ohtsu/node-v012tng12[关于Node-v0.12新功能]
+
+=== Promise wrapper
+
+再回到 <<fs-method-chain.js>> 和 <<fs-promise-chain.js,Promise版>>，这两种方法相比较内部实现也非常相近，让人觉得是不是同步版本的代码可以直接就当做异步方式来使用呢？
+
+由于JavaScript可以向对象动态添加方法，所以从理论上来说应该可以从非Promise版自动生成Promise版的代码。（当然静态定义的实现方式容易处理）
+
+尽管 <<es6-promises,ES6 Promises>> 并没有提供此功能，但是著名的第三方Promise实现类库 https://github.com/petkaantonov/bluebird/[bluebird] 等提供了被称为
+https://github.com/petkaantonov/bluebird/blob/master/API.md#promisification[Promisification] 的功能。
+
+如果使用类似这样的类库，那么就可以动态给对象增加promise版的方法。
+
+[source,javascript]
+----
+var fs = Promise.promisifyAll(require("fs"));
+
+fs.readFileAsync("myfile.js", "utf8").then(function(contents){
+    console.log(contents);
+}).catch(function(e){
+    console.error(e.stack);
+});
+----
+
+==== Array的Promise wrapper
+
+前面的 https://github.com/petkaantonov/bluebird/blob/master/API.md#promisification[Promisification] 具体都干了些什么光凭想象恐怕不太容易理解，我们可以通过给原生的 `Array` 增加Promise版的方法为例来进行说明。
+
+在JavaScript中原生DOM或String等也提供了很多创建方法链的功能。
+`Array` 中就有诸如 `map` 和 `filter` 等方法，这些方法会返回一个数组类型，可以用这些方法方便的组建方法链。
+
+[source,javascript]
+[[array-promise-chain.js]]
+.array-promise-chain.js
+----
+include::src/promise-chain/array-promise-chain.js[]
+----
+
+原生的 Array 和 `ArrayAsPromise` 在使用时有什么差异呢？我们可以通过对 <<array-promise-chain.js,上面的代码>> 进行测试来了解它们之间的不同点。
+
+[source,javascript]
+[[array-promise-chain-test.js]]
+.array-promise-chain-test.js
+----
+include::test/array-promise-chain-test.js[]
+----
+
+我们看到，在 `ArrayAsPromise` 中也能使用 Array的方法。而且也和前面的例子类似，原生的Array是同步处理，而 `ArrayAsPromise` 则是异步处理，这也是它们的不同之处。
+
+仔细看一下 `ArrayAsPromise` 的实现，也许你已经注意到了， `Array.prototype` 的所有方法都被实现了。
+但是，`Array.prototype` 中也存在着类似`array.indexOf` 等并不会返回数组类型数据的方法，这些方法如果也要支持方法链的话就有些不自然了。
+
+在这里非常重要的一点是，我们可以通过这种方式，为具有接收相同类型数据接口的API动态的创建Promise版的API。
+如果我们能意识到这种API的规则性的话，那么就可能发现一些新的使用方法。
+
+[NOTE]
+====
+前面我们看到的 https://github.com/petkaantonov/bluebird/blob/master/API.md#promisification[Promisification] 方法，借鉴了了 Node.js的Core模块中在进行异步处理时将 `function(error,result){}` 方法的第一个参数设为 `error` 这一规则，自动的创建由Promise包装好的方法。
+====
+
+=== 总结
+
+在本小节我们主要学习了下面的这些内容。
+
+* Promise版的方法链实现
+* Promise并不是总是异步编程的最佳选择
+* Promisification
+* 统一接口的重用
+
+<<es6-promises,ES6 Promises>>只提供了一些Core级别的功能。
+因此，我们也许需要对现有的方法用Promise方式重新包装一下。
+
+但是，类似Event等调用次数没有限制的回调函数等在并不适合使用Promise，Promise也不能说什么时候都是最好的选择。
+
+至于什么情况下应该使用Promise，什么时候不该使用Promise，并不是本书要讨论的目的，
+我们需要牢记的是不要什么都用Promise去实现，我想最好根据自己的具体目的和情况，来考虑是应该使用Promise还是其它方法。

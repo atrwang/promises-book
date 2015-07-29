@@ -1,0 +1,144 @@
+[[not-throw-use-reject]]
+== 使用reject而不是throw
+
+Promise的构造函数，以及被 `then` 调用执行的函数基本上都可以认为是在 
+`try...catch` 代码块中执行的，所以在这些代码中即使使用 `throw` ，程序本身也不会因为异常而终止。
+
+如果在Promise中使用 `throw` 语句的话，会被 `try...catch` 住，最终promise对象也变为Rejected状态。
+
+[role="executable"]
+[source,javascript]
+----
+var promise = new Promise(function(resolve, reject){
+    throw new Error("message");
+});
+promise.catch(function(error){
+    console.error(error);// => "message"
+});
+----
+
+代码像这样其实运行时倒也不会有什么问题，但是如果想把 <<promise-states,promise对象状态>> 设置为Rejected状态的话，使用 `reject` 方法则更显得合理。
+
+所以上面的代码可以改写为下面这样。
+
+[role="executable"]
+[source,javascript]
+----
+var promise = new Promise(function(resolve, reject){
+    reject(new Error("message"));
+});
+promise.catch(function(error){
+    console.error(error);// => "message"
+})
+----
+
+其实我们也可以这么来考虑，在出错的时候我们并没有调用 `throw` 方法，而是使用了 `reject` ，那么给 `reject` 方法传递一个Error类型的对象也就很好理解了。
+
+=== 使用reject有什么优点？
+
+话说回来，为什么在想将promise对象的状态设置为Rejected的时候应该使用 `reject` 而不是 `throw` 呢？
+
+首先是因为我们很难区分 `throw` 是我们主动抛出来的，还是因为真正的其它 **异常** 导致的。
+
+比如在使用Chrome浏览器的时候，Chrome的开发者工具提供了在程序发生异常的时候自动在调试器中break的功能。
+
+.Pause On Caught Exceptions
+image::img/chrome_on_caught_exception.png[Pause On Caught Exceptions]
+
+当我们开启这个功能的时候，在执行到下面代码中的 `throw` 时就会触发调试器的break行为。
+
+[source,javascript]
+----
+var promise = new Promise(function(resolve, reject){
+    throw new Error("message");
+});
+----
+
+本来这是和调试没有关系的地方，也因为在Promise中的 `throw` 语句被break了，这也严重的影响了浏览器提供的此功能的正常使用。
+
+=== 在then中进行reject
+
+在Promise构造函数中，有一个用来指定 `reject` 方法的参数，使用这个参数而不是依靠 
+`throw` 将promise对象的状态设置为Rejected状态非常简单。
+
+那么如果像下面那样想在 `then` 中进行reject的话该怎么办呢？
+
+[source,javascript]
+----
+var promise = Promise.resolve();
+promise.then(function (value) {
+    setTimeout(function () {
+        // 经过一段时间后还没处理完的话就进行reject - 2
+    }, 1000);
+    // 比较耗时的处理 - 1
+    somethingHardWork();
+}).catch(function (error) {
+    // 超时错误 - 3
+});
+----
+
+上面的超时处理，需要在 `then` 中进行 `reject` 方法调用，但是传递给当前的回调函数的参数只有前面的一promise对象，这该怎么办呢？
+
+[NOTE]
+关于使用Promise进行超时处理的具体实现方法可以参考 <<race-delay-timeout,使用Promise.race和delay取消XHR请求>> 中的详细说明。
+
+在这里我们再次回忆下 `then` 的工作原理。
+
+在 `then` 中注册的回调函数可以通过 `return` 返回一个值，这个返回值会传给后面的 `then` 或 `catch` 中的回调函数。
+
+而且return的返回值类型不光是简单的字面值，还可以是复杂的对象类型，比如promise对象等。
+
+// TODO 规范上的说明 - PromiseReactionTask
+
+这时候，如果返回的是promise对象的话，那么根据这个promise对象的状态，在下一个 `then` 中注册的回调函数中的onFulfilled和onRejected的哪一个会被调用也是能确定的。
+
+[source,javascript]
+----
+var promise = Promise.resolve();
+promise.then(function () {
+    var retPromise = new Promise(function (resolve, reject) {
+        // resolve or reject 的状态决定 onFulfilled or onRejected 的哪个方法会被调用
+    });
+    return retPromise;// <1>
+}).then(onFulfilled, onRejected);
+----
+<1> 后面的then调用哪个回调函数是由promise对象的状态来决定的
+
+也就是说，这个 `retPromise` 对象状态为Rejected的时候，会调用后面then中的 `onRejected` 方法，这样就实现了即使在 `then` 中不使用 `throw` 也能进行reject处理了。
+
+[role="executable"]
+[source,javascript]
+----
+var onRejected = console.error.bind(console);
+var promise = Promise.resolve();
+promise.then(function () {
+    var retPromise = new Promise(function (resolve, reject) {
+       reject(new Error("this promise is rejected"));
+    });
+    return retPromise;
+}).catch(onRejected);
+----
+
+使用 <<Promise.reject>> 的话还能再将代码进行简化。
+
+[role="executable"]
+[source,javascript]
+----
+var onRejected = console.error.bind(console);
+var promise = Promise.resolve();
+promise.then(function () {
+    return Promise.reject(new Error("this promise is rejected"));
+}).catch(onRejected);
+----
+
+=== 总结
+
+在本小节我们主要学习了
+
+* 使用 `reject` 会比使用 `throw` 安全
+* 在 `then` 中使用reject的方法
+
+也许实际中我们可能不常使用 `reject` ，但是比起来不假思索的使用 `throw` 来说，使用 `reject` 的好处还是很多的。
+
+关于上面讲的内容的比较详细的例子，大家可以参考在 
+<<race-delay-timeout,使用Promise.race和delay取消XHR请求>> 小节的介绍。

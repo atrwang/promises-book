@@ -1,0 +1,30 @@
+[[chapter4-advanced-promise]]
+= Chapter.4 - Advanced
+:imagesdir: Ch4_AdvancedPromises
+
+在这一章里，我们会基于前面学到的内容，再深入了解一下Promise里的一些高级内容，加深对Promise的理解。
+
+// promise和类库
+include::promise-library.adoc[]
+
+
+// Promise.resolve和thenable
+include::resolve-thenable.adoc[]
+
+// not-throw-use-reject.adoc
+include::not-throw-use-reject.adoc[]
+
+// Deferred
+include::deferred-promise.adoc[]
+
+// delay cancel promise
+include::race-delay-timeout.adoc[]
+
+// Promise.prototype.done
+include::promise-done.adoc[]
+
+// promise-chain
+include::promise-chain.adoc[]
+
+// Promise sequence
+include::promise-sequence.adoc[]

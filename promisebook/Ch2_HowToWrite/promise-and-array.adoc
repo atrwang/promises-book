@@ -1,0 +1,84 @@
+[[ch2-promise-and-array]]
+== Promise和数组
+
+到目前为止我们已经学习了如何通过 <<promise.then,`.then`>> 和 <<promise.catch,`.catch`>> 来注册回调函数，这些回调函数会在promise对象变为 FulFilled 或 Rejected 状态之后被调用。
+
+如果只有一个promise对象的话我们可以像前面介绍的那样编写代码就可以了，如果要在多个promise对象都变为FulFilled状态的时候才要进行某种处理话该如何操作呢？
+
+我们以当所有XHR（异步处理）全部结束后要进行某操作为例来进行说明。
+
+各位读者现在也许有点难以在大脑中描绘出这么一种场景，我们可以先看一下下面使用了普通的回调函数风格的XHR处理代码。
+
+=== 通过回调方式来进行多个异步调用
+
+[role="executable"]
+[source,javascript]
+[[multiple-xhr-callback.js]]
+.multiple-xhr-callback.js
+----
+include::embed/embed-multiple-xhr-callback.js[]
+// 运行的例子
+main(function(error, results){
+    if(error){
+        return console.error(error);
+    }
+    console.log(results);
+});
+----
+
+这段回调函数风格的代码有以下几个要点。
+
+* 直接使用 `JSON.parse` 函数的话可能会抛出异常，所以这里使用了一个包装函数 `jsonParse` 
+* 如果将多个XHR处理进行嵌套调用的话层次会比较深，所以使用了 `allRequest` 函数并在其中对request进行调用。
+* 回调函数采用了 `callback(error,value)` 这种写法，第一个参数表示错误信息，第二个参数为返回值
+
+在使用 `jsonParse` 函数的时候我们使用了 `bind` 进行绑定，通过使用这种偏函数（Partial Function）的方式就可以减少匿名函数的使用。（如果在函数回调风格的代码能很好的做到函数分离的话，也能减少匿名函数的数量）
+
+[source,javascript]
+----
+jsonParse.bind(null, callback);
+// 可以认为这种写法能转换为以下的写法
+function bindJSONParse(error, value){
+    jsonParse(callback, error, value);
+}
+----
+
+在这段回调风格的代码中，我们也能发现如下一些问题。
+
+* 需要显示进行异常处理
+* 为了不让嵌套层次太深，需要一个对request进行处理的函数
+* 到处都是回调函数
+
+下面我们再来看看如何使用 `Promise#then` 来完成同样的工作。
+
+=== 使用Promise#then同时处理多个异步请求
+
+需要事先说明的是 `Promise.all` 比较适合这种应用场景的需求，因此我们故意采用了大量 `.then` 的晦涩的写法。
+
+使用了<<promise.then,`.then`>> 的话，也并不是说能和回调风格完全一致，大概重写后代码如下所示。
+
+[role="executable"]
+[source,javascript]
+[[multiple-xhr.js]]
+.multiple-xhr.js
+----
+include::embed/embed-multiple-xhr.js[]
+// 运行的例子
+main().then(function (value) {
+    console.log(value);
+}).catch(function(error){
+    console.error(error);
+});
+----
+
+将上述代码和<<multiple-xhr-callback.js, 回调函数风格>>相比，我们可以得到如下结论。
+
+* 可以直接使用 `JSON.parse` 函数
+* 函数 `main()` 返回promise对象
+* 错误处理的地方直接对返回的promise对象进行处理
+
+向前面我们说的那样，main的 `then` 部分有点晦涩难懂。
+
+为了应对这种需要对多个异步调用进行统一处理的场景，Promise准备了 `Promise.all` 和 `Promise.race` 这两个静态方法。
+
+在下面的小节中我们将对这两个函数进行说明。

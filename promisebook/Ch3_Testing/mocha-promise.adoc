@@ -1,0 +1,193 @@
+[[mocha-promise]]
+== Mocha对Promise的支持
+
+在这里，我们将会学习什么是Mocha支持的“对Promise测试”。
+
+官方网站 http://mochajs.org/#asynchronous-code[Asynchronous code] 也记载了关于Promise测试的概要。
+
+> Alternately, instead of using the done() callback, you can return a promise. This is useful if the APIs you are testing return promises instead of taking callbacks:
+
+这段话的意思是，在对Promise进行测试的时候，不使用 `done()` 这样的回调风格的代码编写方式，而是返回一个promise对象。
+
+那么实际上代码将会是什么样的呢？这里我们来看个具体的例子应该容易理解了。
+
+
+[source,javascript]
+[[mocha-promise-test.js]]
+.mocha-promise-test.js
+----
+include::embed/embed-mocha-promise-test.js[]
+----
+
+这段代码将前面 <<promise-assert-fail-fixed, 前面使用 `done` 的例子>> 按照Mocha的Promise测试方式进行了重写。
+
+修改的地方主要在以下两点：
+
+* 删除了 `done`
+* 返回结果为promise对象
+
+采用这种写法的话，当 `assert` 失败的时候，测试本身自然也会失败。
+
+[source,javascript]
+----
+it("should be fail", function () {
+    return Promise.resolve().then(function () {
+        assert(false);// => 测试失败
+    });
+});
+----
+
+采用这种方法，就能从根本上省略诸如 `.then(done, done);` 这样本质上跟测试逻辑并无直接关系的代码。
+
+[NOTE]
+====
+http://efcl.info/2014/0314/res3708/[Mocha已经支持对Promises的测试 | Web scratch] 这篇（日语）文章里也提到了关于Mocha对Promise测试的支持。
+====
+
+=== 意料之外（失败的）的测试结果
+
+因为Mocha提供了对Promise的测试，所以我们会认为按照Mocha的规则来写会比较好。
+但是这种代码可能会带来意想不到的异常情况的发生。
+
+比如对下面的`mayBeRejected()` 函数的测试代码，该函数返回一个当满足某一条件就变为Rejected的promise对象。
+
+[source,javascript]
+[[mocha-rejected-promise-test]]
+.想对Error Object进行测试
+----
+function mayBeRejected(){ // <1>
+    return Promise.reject(new Error("woo"));
+}
+it("is bad pattern", function () {
+    return mayBeRejected().catch(function (error) {
+        assert(error.message === "woo");
+    });
+});
+----
+<1> 这个函数用来对返回的promise对象进行测试
+
+
+这个测试的目的包括以下两点：
+
+`mayBeRejected()` 返回的promise对象如果变为FulFilled状态的话::
+    测试将会失败
+`mayBeRejected()` 返回的promise对象如果变为Rejected状态的话::
+    在 `assert` 中对Error对象进行检查
+
+
+上面的测试代码，当promise对象变为Rejected的时候，会调用在 `onRejected` 中注册的函数，从而没有走正promise的处理常流程，测试会成功。
+
+这段测试代码的问题在于当`mayBeRejected()` 返回的是一个
+**为FulFilled状态的promise对象时**，测试会一直成功。
+
+[source,javascript]
+----
+function mayBeRejected(){ // <1>
+    return Promise.resolve();
+}
+it("is bad pattern", function () {
+    return mayBeRejected().catch(function (error) {
+        assert(error.message === "woo");
+    });
+});
+----
+<1> 返回的promise对象会变为FulFilled
+
+在这种情况下，由于在 `catch` 中注册的 `onRejected` 函数并不会被调用，因此
+`assert` 也不会被执行，测试会一直通过（passed，成功）。
+
+为了解决这个问题，我们可以在 `.catch` 的前面加入一个 `.then` 调用，可以理解为如果调用了
+`.then` 的话，那么测试就需要失败。
+
+[source,javascript]
+----
+function failTest() { // <1>
+    throw new Error("Expected promise to be rejected but it was fulfilled");
+}
+function mayBeRejected(){
+    return Promise.resolve();
+}
+it("should bad pattern", function () {
+    return mayBeRejected().then(failTest).catch(function (error) {
+        assert.deepEqual(error.message === "woo");
+    });
+});
+----
+<1> 通过throw来使测试失败
+
+但是，这种写法会像在前面 <<then-or-catch,then or catch?>> 中已经介绍的一样，
+`failTest` 抛出的异常会被 `catch` 捕获。
+
+.Then Catch flow
+image::../Ch2_HowToWrite/img/then_catch.png[Then Catch flow]
+
+程序的执行流程为 `then` -> `catch`，传递给 `catch` 的Error对象为`AssertionError`类型 ，
+这并不是我们想要的东西。
+
+也就是说，我们希望测试**只能**通过状态会变为onRejected的promise对象，
+如果promise对象状态为onFulfilled状态的话，那么该测试就会一直通过。
+
+=== 明确两种状态，改善测试中的意外（异常）状况
+
+在编写 <<mocha-rejected-promise-test, 上面对Error对象进行测试的例子>> 时，
+怎么才能剔除那些会意外通过测试的情况呢？
+
+最简单的方式就是像下面这样，在测试代码中判断在各种promise对象的状态下，应进行如何的操作。
+
+变为FulFilled状态的时候::
+    测试会预期失败
+变为Rejected状态的时候::
+    使用 `assert` 进行测试
+
+也就是说，我们需要在测试代码中明确指定在Fulfilled和Rejected这两种状态下，都需进行什么样的处理。
+
+[source,javascript]
+----
+function mayBeRejected() {
+    return Promise.resolve();
+}
+it("catch -> then", function () {
+    // 变为FulFilled的时候测试失败
+    return mayBeRejected().then(failTest, function (error) {
+        assert(error.message === "woo");
+    });
+});
+----
+
+像这样的话，就能在promise变为FulFilled的时候编写出失败用的测试代码了。
+
+.Promise onRejected test
+image::img/promise-test.png[Promise onRejected test]
+
+
+在 <<then-or-catch,then or catch?>> 中我们已经讲过，为了避免遗漏对错误的处理，
+与使用 `.then(onFulfilled, onRejected)` 这样带有二个参数的调用形式相比，
+我们更推荐使用 `then` -> `catch` 这样的处理方式。
+
+但是在编写测试代码的时候，Promise强大的错误处理机制反而成了限制我们的障碍。
+因此我们不得已采取了 `.then(failTest, onRejected)` 这种写法，明确指定promise在各种状态下进行何种的处理。
+
+=== 总结
+
+在本小节中我们对在使用Mocha进行Promise测试时可能出现的一些意外情况进行了介绍。
+
+* 普通的代码采用 `then` -> `catch` 的流程的话比较容易理解
+** 这是为了错误处理的方便。请参考 <<then-or-catch,then or catch?>>
+* 将测试代码集中到 `then` 中处理
+** 为了能将AssertionError对象传递到测试框架中。
+
+通过使用 `.then(onFulfilled, onRejected)` 这种形式的写法，
+我们可以明确指定promise对象在变为 Fulfilled或Rejected时如何进行处理。
+
+但是，由于需要显示的指定 Rejected时的测试处理，
+像下面这样的代码看起来总是有一些让人感到不太直观的感觉。
+
+[source,javascript]
+----
+promise.then(failTest, function(error){
+    // 使用assert对error进行测试
+});
+----
+
+在下一小节，我们会介绍如何编写helper函数以方便编写Promise的测试代码，
+以及怎样去编写更容易理解的测试代码。

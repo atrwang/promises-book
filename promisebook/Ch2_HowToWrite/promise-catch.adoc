@@ -1,0 +1,86 @@
+[[ch2-promise-catch]]
+== Promise#catch
+
+在 <<ch2-promise.then, 前面的Promise#then>> 的章节里，我们已经简单地使用了 `Promise#catch` 方法。
+
+这里我们再说一遍，实际上 <<promise.catch,Promise#catch>> 只是 `promise.then(undefined, onRejected);` 方法的一个别名而已。
+也就是说，这个方法用来注册当promise对象状态变为Rejected时的回调函数。
+
+[NOTE]
+关于如何根据场景使用 <<promise.then,Promise#then>> 和 <<promise.catch,Promise#catch>> 可以参考
+ <<then-or-catch,then or catch?>> 中介绍的内容。
+
+=== IE8的问题
+
+image:img/promise-catch-error.png["Build Status", link="https://ci.testling.com/azu/promise-catch-error"]
+
+上面的这张图，是下面这段代码在使用 https://github.com/jakearchibald/es6-promise[polyfill] 的情况下在个浏览器上执行的结果。
+
+[NOTE]
+====
+polyfill是一个支持在不具备某一功能的浏览器上使用该功能的Library。
+这里我们使用的例子则来源于 https://github.com/jakearchibald/es6-promise[jakearchibald/es6-promise] 。
+====
+
+[role="executable"]
+[source,javascript]
+.Promise#catch的运行结果
+----
+var promise = Promise.reject(new Error("message"));
+promise.catch(function (error) {
+    console.error(error);
+});
+----
+
+如果我们在各种浏览器中执行这段代码，那么在IE8及以下版本则会出现 **identifier not found** 的语法错误。
+
+这是怎么回事呢？ 实际上这和 `catch` 是ECMAScript的 http://mothereff.in/js-properties#catch[保留字] (Reserved Word)有关。
+
+在ECMAScript 3中保留字是不能作为对象的属性名使用的。
+而IE8及以下版本都是基于ECMAScript 3实现的，因此不能将 `catch` 作为属性来使用，也就不能编写类似 `promise.catch()` 的代码，因此就出现了 **identifier not found** 这种语法错误了。
+
+而现在的浏览器都是基于ECMAScript 5的，而在ECMAScript 5中保留字都属于 http://es5.github.io/#x7.6[IdentifierName] ，也可以作为属性名使用了。
+
+[NOTE]
+====
+在ECMAScript5中保留字也不能作为 http://es5.github.io/#x7.6[Identifier] 即变量名或方法名使用。
+如果我们定义了一个名为 `for` 的变量的话，那么就不能和循环语句的 `for` 区分了。
+而作为属性名的话，我们还是很容易区分 `object.for` 和 `for` 的，仔细想想我们就应该能接受将保留字作为属性名来使用了。
+====
+
+当然，我们也可以想办法回避这个ECMAScript 3保留字带来的问题。
+
+https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Property_Accessors#Dot_notation[点标记法（dot notation）] 要求对象的属性必须是有效的标识符（在ECMAScript 3中则不能使用保留字），
+
+但是使用 https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Operators/Property_Accessors#Bracket_notation[中括号标记法（bracket notation）]的话，则可以将非合法标识符作为对象的属性名使用。
+
+也就是说，上面的代码如果像下面这样重写的话，就能在IE8及以下版本的浏览器中运行了（当然还需要polyfill）。
+
+[role="executable"]
+[source,javascript]
+.解决Promise#catch标识符冲突问题
+----
+var promise = Promise.reject(new Error("message"));
+promise["catch"](function (error) {
+    console.error(error);
+});
+----
+
+或者我们不单纯的使用 `catch` ，而是使用 `then` 也是可以避免这个问题的。
+
+[role="executable"]
+[source,javascript]
+.使用Promise#then代替Promise#catch
+----
+var promise = Promise.reject(new Error("message"));
+promise.then(undefined, function (error) {
+    console.error(error);
+});
+----
+
+由于 `catch` 标识符可能会导致问题出现，因此一些类库（Library）也采用了 `caught` 作为函数名，而函数要完成的工作是一样的。
+
+而且很多压缩工具自带了将 `promise.catch` 转换为 `promise["catch"]` 的功能，
+所以可能不经意之间也能帮我们解决这个问题。
+
+如果各位读者需要支持IE8及以下版本的浏览器的话，那么一定要将这个 `catch` 问题牢记在心中。

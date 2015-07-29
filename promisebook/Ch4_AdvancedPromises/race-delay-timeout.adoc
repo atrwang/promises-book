@@ -1,0 +1,225 @@
+[[race-delay-timeout]]
+== 使用Promise.race和delay取消XHR请求
+
+在本小节中，作为在第<<ch2-promise-race,2章>>所学的 <<Promise.race,`Promise.race`>> 的具体例子，我们来看一下如何使用Promise.race来实现超时机制。
+
+当然XHR有一个 https://developer.mozilla.org/ja/docs/XMLHttpRequest/Synchronous_and_Asynchronous_Requests[timeout] 属性，使用该属性也可以简单实现超时功能，但是为了能支持多个XHR同时超时或者其他功能，我们采用了容易理解的异步方式在XHR中通过超时来实现取消正在进行中的操作。
+
+=== 让Promise等待指定时间
+
+首先我们来看一下如何在Promise中实现超时。
+
+所谓超时就是要在经过一定时间后进行某些操作，使用 `setTimeout` 的话很好理解。
+
+首先我们来串讲一个单纯的在Promise中调用  `setTimeout` 的函数。
+
+[source,javascript]
+[[delayPromise.js]]
+.delayPromise.js
+----
+include::embed/embed-delayPromise.js[]
+----
+
+`delayPromise(ms)` 返回一个在经过了参数指定的毫秒数后进行onFulfilled操作的promise对象，这和直接使用 `setTimeout` 函数比较起来只是编码上略有不同，如下所示。
+
+[source,javascript]
+----
+setTimeout(function () {
+    alert("已经过了100ms！");
+}, 100);
+// == 几乎同样的操作
+delayPromise(100).then(function () {
+    alert("已经过了100ms！");
+});
+----
+
+在这里 **promise对象** 这个概念非常重要，请切记。
+
+=== Promise.race中的超时
+
+让我们回顾一下静态方法 `Promise.race` ，它的作用是在任何一个promise对象进入到确定（解决）状态后就继续进行后续处理，如下面的例子所示。
+
+[source,javascript]
+----
+include::../Ch2_HowToWrite/embed/embed-promise-race-other.js[]
+----
+
+我们可以将刚才的 <<delayPromise.js,delayPromise>> 和其它promise对象一起放到 
+`Promise.race` 中来是实现简单的超时机制。
+
+[source,javascript]
+[[simple-timeout-promise.js]]
+.simple-timeout-promise.js
+----
+include::embed/embed-simple-timeout-promise.js[]
+----
+
+函数 `timeoutPromise(比较对象promise, ms)` 接收两个参数，第一个是需要使用超时机制的promise对象，第二个参数是超时时间，它返回一个由 `Promise.race` 创建的相互竞争的promise对象。
+
+之后我们就可以使用 `timeoutPromise` 编写下面这样的具有超时机制的代码了。
+
+[role="executable"]
+[source,javascript]
+----
+include::embed/embed-simple-timeout-promise.js[]
+// 运行示例
+var taskPromise = new Promise(function(resolve){
+    // 随便一些什么处理
+    var delay = Math.random() * 2000;
+    setTimeout(function(){
+        resolve(delay + "ms");
+    }, delay);
+});
+timeoutPromise(taskPromise, 1000).then(function(value){
+    console.log("taskPromise在规定时间内结束 : " + value);
+}).catch(function(error){
+    console.log("发生超时", error);
+});
+----
+
+虽然在发生超时的时候抛出了异常，但是这样的话我们就不能区分这个异常到底是__普通的错误__还是__超时错误__了。
+
+为了能区分这个 `Error` 对象的类型，我们再来定义一个`Error` 对象的子类 `TimeoutError`。
+
+=== 定制Error对象
+
+`Error` 对象是ECMAScript的内建（build in）对象。
+
+但是由于stack trace等原因我们不能完美的创建一个继承自 `Error` 的类，不过在这里我们的目的只是为了和Error有所区别，我们将创建一个 `TimeoutError` 类来实现我们的目的。
+
+[NOTE]
+====
+在ECMAScript6中可以使用 `class` 语法来定义类之间的继承关系。
+
+[source,javascript]
+----
+class MyError extends Error{
+    // 继承了Error类的对象
+}
+----
+====
+
+
+为了让我们的 `TimeoutError` 能支持类似 `error instanceof TimeoutError` 的使用方法，我们还需要进行如下工作。
+
+[source,javascript]
+[[TimeoutError.js]]
+.TimeoutError.js
+----
+include::embed/embed-TimeoutError.js[]
+----
+
+我们定义了 `TimeoutError` 类和构造函数，这个类继承了Error的prototype。
+
+它的使用方法和普通的 `Error` 对象一样，使用 `throw` 语句即可，如下所示。
+
+[source,javascript]
+----
+var promise = new Promise(function(){
+    throw TimeoutError("timeout");
+});
+
+promise.catch(function(error){
+    console.log(error instanceof TimeoutError);// true
+});
+
+----
+
+有了这个 `TimeoutError` 对象，我们就能很容易区分捕获的到底是因为超时而导致的错误，还是其他原因导致的Error对象了。
+
+[NOTE]
+====
+
+本章里介绍的继承JavaScript内建对象的方法可以参考 http://speakingjs.com/es5/ch28.html[Chapter 28. Subclassing Built-ins] ，那里有详细的说明。此外 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error[Error - JavaScript | MDN] 也针对Error对象进行了详细说明。
+====
+
+=== 通过超时取消XHR操作
+
+到这里，我想各位读者都已经对如何使用Promise来取消一个XHR请求都有一些思路了吧。
+
+取消XHR操作本身的话并不难，只需要调用 `XMLHttpRequest` 对象的 `abort()` 方法就可以了。 
+
+为了能在外部调用 `abort()` 方法，我们先对之前本节出现的 <<xhr-promise.js,`getURL`>> 进行简单的扩展，`cancelableXHR` 方法除了返回一个包装了XHR的promise对象之外，还返回了一个用于取消该XHR请求的`abort`方法。
+
+[source,javascript]
+[[delay-race-cancel.js]]
+.delay-race-cancel.js
+----
+include::embed/embed-delay-race-cancel.js[]
+----
+
+在这些问题都明了之后，剩下只需要进行Promise处理的流程进行编码即可。大体的流程就像下面这样。
+
+. 通过 `cancelableXHR` 方法取得包装了XHR的promise对象和取消该XHR请求的方法
+. 在 `timeoutPromise` 方法中通过 `Promise.race` 让XHR的包装promise和超时用promise进行竞争。
+* XHR在超时前返回结果的话
+.. 和正常的promise一样，通过 `then` 返回请求结果
+* 发生超时的时候
+.. 抛出 `throw TimeoutError` 异常并被 `catch`
+.. catch的错误对象如果是 `TimeoutError` 类型的话，则调用 `abort` 方法取消XHR请求
+
+将上面的步骤总结一下的话，代码如下所示。
+
+[role="executable"]
+[source,javascript]
+[[delay-race-cancel-play.js]]
+.delay-race-cancel-play.js
+----
+include::embed/embed-delay-race-cancel-play.js[]
+----
+
+上面的代码就通过在一定的时间内变为解决状态的promise对象实现了超时处理。
+
+[NOTE]
+通常进行开发的情况下，由于这些逻辑会频繁使用，因此将这些代码分割保存在不同的文件应该是一个不错的选择。
+
+=== promise和操作方法
+
+在前面的 <<delay-race-cancel.js,`cancelableXHR`>> 中，promise对象及其操作方法都是在一个对象中返回的，看起来稍微有些不太好理解。
+
+从代码组织的角度来说一个函数只返回一个值（promise对象）是一个非常好的习惯，但是由于在外面不能访问 `cancelableXHR` 方法中创建的 `req` 变量，所以我们需要编写一个专门的函数（上面的例子中的`abort`）来对这些内部对象进行处理。
+
+当然也可以考虑到对返回的promise对象进行扩展，使其支持`abort`方法，但是由于promise对象是对值进行抽象化的对象，如果不加限制的增加操作用的方法的话，会使整体变得非常复杂。
+
+大家都知道一个函数做太多的工作都不认为是一个好的习惯，因此我们不会让一个函数完成所有功能，也许像下面这样对函数进行分割是一个不错的选择。
+
+* 返回包含XHR的promise对象
+* 接收promise对象作为参数并取消该对象中的XHR请求
+
+将这些处理整理为一个模块的话，以后扩展起来也方便，一个函数所做的工作也会比较精炼，代码也会更容易阅读和维护。
+
+我们有很多方法来创建一个模块（AMD,CommonJS,ES6 module etc..），在这里，我们将会把前面的 `cancelableXHR` 整理为一个Node.js的模块使用。
+
+[source,javascript]
+[[cancelableXHR.js]]
+.cancelableXHR.js
+----
+include::lib/cancelableXHR.js[]
+----
+
+使用方法也非常简单，我们通过 `createXHRPromise` 方法得到XHR的promise对象，当想对这个XHR进行`abort`操作的时候，将这个promise对象传递给  `abortPromise(promise)` 方法就可以了。 
+
+[source,javascript]
+----
+var cancelableXHR = require("./cancelableXHR");
+
+var xhrPromise = cancelableXHR.createXHRPromise('http://httpbin.org/get');// <1>
+xhrPromise.catch(function (error) {
+    // 调用 abort 抛出的错误
+});
+cancelableXHR.abortPromise(xhrPromise);// <2>
+----
+<1> 创建包装了XHR的promise对象
+<2> 取消在1中创建的promise对象的请求操作
+
+
+=== 总结
+
+在这里我们学到了如下内容。
+
+* 经过一定时间后变为解决状态的delayPromise
+* 基于delayPromise和Promise.race的超时实现方式
+* 取消XHR promise请求
+* 通过模块化实现promise对象和操作的分离
+
+Promise能非常灵活的进行处理流程的控制，为了充分发挥它的能力，我们需要注意不要将一个函数写的过于庞大冗长，而是应该将其分割成更小更简单的处理，并对之前JavaScript中提到的机制进行更深入的了解。

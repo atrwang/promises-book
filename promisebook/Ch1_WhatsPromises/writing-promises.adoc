@@ -1,0 +1,147 @@
+[[how-to-write-promise]]
+== 编写Promise代码
+
+这里我们来介绍一下如何编写Promise代码。
+
+=== 创建promise对象
+
+创建promise对象的流程如下所示。
+
+. `new Promise(fn)` 返回一个promise对象
+. 在`fn` 中指定异步等处理
+    * 处理结果正常的话，调用`resolve(处理结果值)` 
+    * 处理结果错误的话，调用`reject(Error对象)` 
+
+
+按这个流程我们来实际编写下promise代码吧。
+
+我们的任务是用Promise来通过异步处理方式来获取XMLHttpRequest(XHR)的数据。
+
+==== 创建XHR的promise对象
+
+首先，创建一个用Promise把XHR处理包装起来的名为 `getURL` 的函数。
+
+[role="executable"]
+[[xhr-promise.js]]
+.xhr-promise.js
+[source,javascript]
+----
+include::embed/embed-xhr-promise.js[]
+// 运行示例
+var URL = "http://httpbin.org/get";
+getURL(URL).then(function onFulfilled(value){
+    console.log(value);
+}).catch(function onRejected(error){
+    console.error(error);
+});
+----
+
+`getURL` 只有在通过XHR取得结果状态为200时才会调用 `resolve` - 也就是只有数据取得成功时，而其他情况（取得失败）时则会调用 `reject` 方法。
+
+
+`resolve(req.responseText)` 在response的内容中加入了参数。
+resolve方法的参数并没有特别的规则，基本上把要传给回调函数参数放进去就可以了。
+( `then` 方法可以接收到这个参数值)
+
+熟悉Node.js的人，经常会在写回调函数时将 `callback(error, response)` 的第一个参数设为error对象，而在Promise中resolve/reject则担当了这个职责（处理正常和异常的情况），所以
+在resolve方法中只传一个response参数是没有问题的。
+
+接下来我们来看一下`reject`函数。
+
+XHR中 `onerror` 事件被触发的时候就是发生错误时，所以理所当然调用`reject`。
+这里我们重点来看一下传给`reject`的值。
+
+发生错误时要像这样 `reject(new Error(req.statusText));` ，创建一个Error对象后再将具体的值传进去。
+传给`reject` 的参数也没有什么特殊的限制，一般只要是Error对象（或者继承自Error对象）就可以。
+
+传给`reject` 的参数，其中一般是包含了reject原因的Error对象。
+本次因为状态值不等于200而被reject，所以`reject` 中放入的是statusText。
+（这个参数的值可以被 `then` 方法的第二个参数或者 `catch` 方法中使用）
+
+=== 编写promise对象处理方法
+
+让我们在实际中使用一下刚才创建的返回promise对象的函数
+
+[source,javascript]
+getURL("http://example.com/"); // => 返回promise对象
+
+如<<promises-overview,Promises Overview>> 中做的简单介绍一样，promise对象拥有几个实例方法，
+我们使用这些实例方法来为promise对象创建依赖于promise的具体状态、并且只会被执行一次的回调函数。
+
+为promise对象添加处理方法主要有以下两种
+
+* promise对象被 **resolve** 时的处理(onFulfilled)
+* promise对象被 **reject** 时的处理(onRejected)
+
+[[promise-value-flow]]
+.promise value flow
+image::img/promise-onFulfilled_onRejected.png[promise-resolve-flow]
+
+首先，我们来尝试一下为 `getURL` 通信成功并取到值时添加的处理函数。
+
+此时所谓的 _通信成功_ ，
+指的就是在被resolve后， _promise对象变为FulFilled状态_ 。
+
+被**resolve**后的处理，可以在<<promise.then,`.then`>> 方法中传入想要调用的函数。
+
+[source,javascript]
+----
+var URL = "http://httpbin.org/get";
+getURL(URL).then(function onFulfilled(value){ // <1>
+    console.log(value);
+});
+----
+<1> 为了方便理解我们把函数命名为 `onFulfilled` 
+
+<<xhr-promise.js,getURL函数>> 中的 `resolve(req.responseText);` 会将promise对象变为resolve（Fulfilled）状态，
+同时使用其值调用 `onFulfilled` 函数。
+
+不过目前我们还没有对其中可能发生的错误做任何处理，
+接下来，我们就来为 `getURL` 函数添加发生错误时的异常处理。
+
+此时 _发生错误_ ，
+指的也就是reject后 _promise对象变为Rejected状态_ 。
+
+被**reject**后的处理，可以在<<promise.then,`.then` 的第二个参数>> 或者是在 <<promise.catch,`.catch`>> 方法中设置想要调用的函数。
+
+把下面reject时的处理加入到刚才的代码，如下所示。
+
+[source,javascript]
+----
+var URL = "http://httpbin.org/status/500"; // <1>
+getURL(URL).then(function onFulfilled(value){
+    console.log(value);
+}).catch(function onRejected(error){ // <2>
+    console.error(error);
+});
+----
+<1> 服务端返回的状态码为500
+<2> 为了方便理解函数被命名为 `onRejected`
+
+在`getURL` 的处理中发生任何异常，或者被明确reject的情况下，
+该异常原因（Error对象）会作为 <<promise.catch,`.catch`>> 方法的参数被调用。
+
+其实 <<promise.catch,`.catch`>>只是 `promise.then(undefined, onRejected)` 的别名而已，
+如下代码也可以完成同样的功能。
+
+[[catch-as-alias]]
+[source,javascript]
+----
+getURL(URL).then(onFulfilled, onRejected);// <1>
+----
+<1> onFulfilled, onRejected 是和刚才相同的函数
+
+一般说来，使用<<promise.catch,`.catch`>>来将resolve和reject处理分开来写是比较推荐的做法，
+这两者的区别会在<<then-or-catch,then和catch的区别>>中再做详细介绍。
+
+==== 总结
+
+在本章我们简单介绍了以下内容：
+
+* 用 `new Promise` 方法创建promise对象
+* 用<<promise.then,`.then`>> 或 <<promise.catch,`.catch`>> 添加promise对象的处理函数
+
+到此为止我们已经学习了Promise的基本写法。
+其他很多处理都是由此基本语法延伸的，也使用了Promise提供的一些静态方法来实现。
+
+实际上即使使用回调方式的写法也能完成上面同样的工作，而使用Promise方式的话有什么优点么？在本小节中我们没有讲到两者的对比及Promise的优点。在接下来的章节中，我们将会对Promise优点之一，即错误处理机制进行介绍，以及和传统的回调方式的对比。

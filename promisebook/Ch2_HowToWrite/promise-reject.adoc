@@ -1,0 +1,26 @@
+[[ch2-promise-reject]]
+== Promise.reject
+
+<<Promise.reject, `Promise.reject(error)`>>是和
+<<Promise.resolve, `Promise.resolve(value)`>> 类似的静态方法，是 `new Promise()` 方法的快捷方式。
+
+比如 `Promise.reject(new Error("出错了"))` 就是下面代码的语法糖形式。
+
+[source,javascript]
+----
+new Promise(function(resolve,reject){
+    reject(new Error("出错了"));
+});
+----
+
+这段代码的功能是调用该promise对象通过then指定的 `onRejected` 函数，并将错误（Error）对象传递给这个 `onRejected` 函数。
+
+[role="executable"]
+[source,javascript]
+----
+Promise.reject(new Error("BOOM!")).catch(function(error){
+    console.error(error);
+});
+----
+
+它和<<Promise.resolve, `Promise.resolve(value)`>> 的不同之处在于promise内调用的函数是reject而不是resolve，这在编写测试代码或者进行debug时，说不定会用得上。

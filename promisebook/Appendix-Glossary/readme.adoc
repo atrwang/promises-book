@@ -1,0 +1,10 @@
+:imagesdir: Appendix-Glossary
+
+// 术语集
+include::glossary.adoc[]
+
+// 参考资源
+include::resource-link.adoc[]
+
+// 关于作者和译者
+include::about-author.adoc[]

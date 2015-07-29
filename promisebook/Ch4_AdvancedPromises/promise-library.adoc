@@ -1,0 +1,96 @@
+[[promise-library]]
+== Promise的实现类库（Library）
+
+在本小节里，我们将不打算对浏览器实现的Promise进行说明，而是要介绍一些第三方实现的和Promise兼容的类库。
+
+=== 为什么需要这些类库？
+
+为什么需要这些类库呢？我想有些读者不免会有此疑问。首先能想到的原因是有些运行环境并不支持 <<es6-promises,ES6 Promises>> 。
+
+ifeval::["{backend}" == "html5"]
+++++
+<div class="iframe-wrapper" style="width: 100%; height: 350px; overflow: auto; -webkit-overflow-scrolling: touch;">
+<iframe src="http://caniuse.com/promises/embed/agents=desktop" width="100%" height="350px"></iframe>
+</div>
+++++
+endif::[]
+
+当我们在网上查找Promise的实现类库的时候，有一个因素是首先要考虑的，那就是是否具有 <<promises-aplus, Promises/A+兼容性>> 。
+
+<<promises-aplus, Promises/A+>> 是 <<es6-promises,ES6 Promises>> 的前身，Promise的 `then` 也是来自于此的基于社区的规范。
+
+如果说一个类库兼容 Promises/A+ 的话，那么就是说它除了具有标准的 `then` 方法之外，很多情况下也说明此类库还支持 `Promise.all` 和 `catch` 等功能。
+
+但是 Promises/A+ 实际上只是定义了关于 `Promise#then` 的规范，所以有些类库可能实现了其它诸如 `all` 或 `catch` 等功能，但是可能名字却不一样。
+
+如果我们说一个类库具有 `then` 兼容性的话，实际上指的是 <<Thenable,Thenable>> ，它通过使用 <<Promise.resolve,Promise.resolve>> 基于ES6 Promise的规定，进行promise对象的变换。
+
+[NOTE]
+====
+ES6 Promise 里关于promise对象的规定包括在使用 
+`catch` 方法，或使用 `Promise.all` 进行处理的时候不能出现错误。
+====
+
+=== Polyfill和扩展类库
+
+在这些Promise的实现类库中，我们这里主要对两种类型的类库进行介绍。
+
+一种是被称为 Polyfill （这是一款英国产品，就是装修刮墙用的腻子，其意义可想而知 -- 译者注）的类库，另一种是即具有 <<promises-aplus, Promises/A+兼容性>> ，又增加了自己独特功能的类库。
+
+[NOTE]
+Promise的实现类库数量非常之多，这里我们只是介绍了其中有限的几个。
+
+[[promise-polyfill]]
+==== Polyfill
+
+只需要在浏览器中加载Polyfill类库，就能使用IE10等或者还没有提供对Promise支持的浏览器中使用Promise里规定的方法。
+
+也就是说如果加载了Polyfill类库，就能在还不支持Promise的环境中，运行本文中的各种示例代码。
+
+https://github.com/jakearchibald/es6-promise[jakearchibald/es6-promise]::
+    一个兼容 ES6 Promises 的Polyfill类库。
+    它基于 https://github.com/tildeio/rsvp.js[RSVP.js] 这个兼容 Promises/A+ 的类库，
+    它只是 RSVP.js 的一个子集，只实现了Promises 规定的 API。
+https://github.com/yahoo/ypromise[yahoo/ypromise]::
+    这是一个独立版本的 http://yuilibrary.com/[YUI] 的 Promise Polyfill，具有和 ES6 Promises 的兼容性。
+    本书的示例代码也都是基于这个 ypromise 的 Polyfill 来在线运行的。
+https://github.com/getify/native-promise-only/[getify/native-promise-only]::
+    以作为ES6 Promises的polyfill为目的的类库
+    它严格按照ES6 Promises的规范设计，没有添加在规范中没有定义的功能。
+    如果运行环境有原生的Promise支持的话，则优先使用原生的Promise支持。
+
+==== Promise扩展类库
+
+Promise扩展类库除了实现了Promise中定义的规范之外，还增加了自己独自定义的功能。
+
+Promise扩展类库数量非常的多，我们只介绍其中两个比较有名的类库。
+
+https://github.com/kriskowal/q[kriskowal/q]::
+    类库 `Q` 实现了 Promises 和 Deferreds 等规范。
+    它自2009年开始开发，还提供了面向Node.js的文件IO API https://github.com/kriskowal/q-io[Q-IO] 等，
+    是一个在很多场景下都能用得到的类库。
+https://github.com/petkaantonov/bluebird[petkaantonov/bluebird]::
+    这个类库除了兼容 Promise 规范之外，还扩展了取消promise对象的运行，取得promise的运行进度，以及错误处理的扩展检测等非常丰富的功能，此外它在实现上还在性能问题下了很大的功夫。
+
+Q 和 Bluebird 这两个类库除了都能在浏览器里运行之外，充实的API reference也是其特征。
+
+* https://github.com/kriskowal/q/wiki/API-Reference[API Reference · kriskowal/q Wiki]
+
+Q等文档里详细介绍了Q的Deferred和jQuery里的Deferred有哪些异同，以及要怎么进行迁移 https://github.com/kriskowal/q/wiki/Coming-from-jQuery[Coming from jQuery] 等都进行了详细的说明。
+
+* https://github.com/petkaantonov/bluebird/blob/master/API.md[bluebird/API.md at master · petkaantonov/bluebird]
+
+Bluebird的文档除了提供了使用Promise丰富的实现方式之外，还涉及到了在出现错误时的对应方法以及
+https://github.com/petkaantonov/bluebird/wiki/Promise-anti-patterns[Promise中的反模式] 等内容。
+
+这两个类库的文档写得都很友好，即使我们不使用这两个类库，阅读一下它们的文档也具有一定的参考价值。
+
+=== 总结
+
+本小节介绍了Promise的实现类库中的 Polyfill 和扩展类库这两种。
+
+Promise的实现类库种类繁多，到底选择哪个来使用完全看自己的喜好了。
+
+但是由于这些类库实现的 Promise 同时具有 Promises/A+ 或 ES6 Promises 共通的接口，所以在使用某一类库的时候，有时候也可以参考一下其他类库的代码或者扩展功能。
+
+熟练掌握Promise中的共通概念，进而能在实际中能对这些技术运用自如，这也是本书的写作目的之一。

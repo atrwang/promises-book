@@ -1,0 +1,122 @@
+[[deferred-and-promise]]
+== Deferred和Promise
+
+这一节我们来简单介绍下Deferred和Promise之间的关系
+
+=== 什么是Deferred？
+
+说起Promise，我想大家一定同时也听说过Deferred这个术语。比如 http://api.jquery.com/category/deferred-object/[jQuery.Deferred] 和 http://cho45.stfuawsc.com/jsdeferred/[JSDeferred] 等，一定都是大家非常熟悉的内容了。
+
+Deferred和Promise不同，它没有共通的规范，每个Library都是根据自己的喜好来实现的。
+
+在这里，我们打算以 http://api.jquery.com/category/deferred-object/[jQuery.Deferred] 类似的实现为中心进行介绍。
+
+=== Deferred和Promise的关系
+
+简单来说，Deferred和Promise具有如下的关系。
+
+- Deferred 拥有 Promise
+- Deferred 具备对 Promise的状态进行操作的特权方法（图中的"特権メソッド"）
+
+.Deferred和Promise
+image::img/deferred-and-promise.png[Deferred和Promise]
+
+我想各位看到此图应该就很容易理解了，Deferred和Promise并不是处于竞争的关系，而是Deferred内涵了Promise。
+
+[NOTE]
+这是jQuery.Deferred结构的简化版。当然也有的Deferred实现并没有内涵Promise。
+
+光看图的话也许还难以理解，下面我们就看看看怎么通过Promise来实现Deferred。
+
+=== Deferred top on Promise
+
+基于Promise实现Deferred的例子。
+
+[source,javascript]
+[[deferred.js]]
+.deferred.js
+----
+include::embed/embed-deferred.js[]
+----
+
+我们再将之前使用Promise实现的 <<xhr-promise.js,`getURL`>> 用Deferred改写一下。
+
+[role="executable"]
+[source,javascript]
+[[xhr-deferred.js]]
+.xhr-deferred.js
+----
+include::embed/embed-xhr-deferred.js[]
+// 运行示例
+var URL = "http://httpbin.org/get";
+getURL(URL).then(function onFulfilled(value){
+    console.log(value);
+}).catch(console.error.bind(console));
+----
+
+所谓的能对Promise状态进行操作的特权方法，指的就是能对promise对象的状态进行resolve、reject等调用的方法，而通常的Promise的话只能在通过构造函数传递的方法之内对promise对象的状态进行操作。
+
+我们来看看Deferred和Promise相比在实现上有什么异同。
+
+[role="executable"]
+[source,javascript]
+.xhr-promise.js
+----
+include::../Ch1_WhatsPromises/embed/embed-xhr-promise.js[]
+// 运行示例
+var URL = "http://httpbin.org/get";
+getURL(URL).then(function onFulfilled(value){
+    console.log(value);
+}).catch(console.error.bind(console));
+----
+
+对比上述两个版本的 `getURL` ，我们发现它们有如下不同。
+
+* Deferred 的话不需要将代码用Promise括起来
+** 由于没有被嵌套在函数中，可以减少一层缩进
+** 反过来没有Promise里的错误处理逻辑
+
+在以下方面，它们则完成了同样的工作。
+
+* 整体处理流程
+** 调用 `resolve`、`reject` 的时机
+* 函数都返回了promise对象
+
+由于Deferred包含了Promise，所以大体的流程还是差不多的，不过Deferred有用对Promise进行操作的特权方法，以及高度自由的对流程控制进行自由定制。
+
+比如在Promise一般都会在构造函数中编写主要处理逻辑，对 `resolve`、`reject` 方法的调用时机也基本是很确定的。
+
+[source,javascript]
+----
+new Promise(function (resolve, reject){
+    // 在这里进行promise对象的状态确定
+});
+----
+
+而使用Deferred的话，并不需要将处理逻辑写成一大块代码，只需要先创建deferred对象，可以在任何时机对 `resolve`、`reject` 方法进行调用。
+
+[source,javascript]
+----
+var deferred = new Deferred();
+
+// 可以在随意的时机对 `resolve`、`reject` 方法进行调用
+----
+
+上面我们只是简单的实现了一个 **Deferred** ，我想你已经看到了它和 **Promise** 之间的差异了吧。
+
+如果说Promise是用来对值进行抽象的话，Deferred则是对处理还没有结束的状态或操作进行抽象化的对象，我们也可以从这一层的区别来理解一下这两者之间的差异。
+
+换句话说，Promise代表了一个对象，这个对象的状态现在还不确定，但是未来一个时间点它的状态要么变为正常值（FulFilled），要么变为异常值（Rejected）；而Deferred对象表示了一个处理还没有结束的这种事实，在它的处理结束的时候，可以通过Promise来取得处理结果。
+
+如果各位读者还想深入了解一下Deferred的话，可以参考下面的这些资料。
+
+* http://blog.mediumequalsmessage.com/promise-deferred-objects-in-javascript-pt1-theory-and-semantics[Promise &amp; Deferred objects in JavaScript Pt.1: Theory and Semantics.]
+* http://skitazaki.appspot.com/translation/twisted-intro-ja/index.html[Twisted 入门 — Twisted Intro]
+* https://github.com/petkaantonov/bluebird/wiki/Promise-anti-patterns#the-deferred-anti-pattern[Promise anti patterns · petkaantonov/bluebird Wiki]
+* https://github.com/kriskowal/q/wiki/Coming-from-jQuery[Coming from jQuery · kriskowal/q Wiki]
+
+[NOTE]
+====
+Deferred最初是在Python的 https://twistedmatrix.com/trac/[Twisted] 框架中被提出来的概念。
+在JavaScript领域可以认为它是由 http://mochi.github.io/mochikit/doc/html/MochiKit/Async.html[MochiKit.Async] 、 http://dojotoolkit.org/reference-guide/1.9/dojo/Deferred.html[dojo/Deferred] 等Library引入的。
+====

@@ -1,0 +1,97 @@
+[[ch2-promise-resolve]]
+== Promise.resolve
+
+一般情况下我们都会使用 `new Promise()` 来创建promise对象，但是除此之外我们也可以使用其他方法。
+
+在这里，我们将会学习如何使用 <<Promise.resolve, `Promise.resolve`>> 和 <<Promise.reject, `Promise.reject`>>这两个方法。
+
+=== new Promise的快捷方式
+
+静态方法<<Promise.resolve, `Promise.resolve(value)`>> 可以认为是
+`new Promise()` 方法的快捷方式。
+
+比如 `Promise.resolve(42);` 可以认为是以下代码的语法糖。
+
+[source,javascript]
+----
+new Promise(function(resolve){
+    resolve(42);
+});
+----
+
+在这段代码中的 `resolve(42);` 会让这个promise对象立即进入确定（即resolved）状态，并将 `42` 传递给后面then里所指定的 `onFulfilled` 函数。
+
+方法 `Promise.resolve(value);` 的返回值也是一个promise对象，所以我们可以像下面那样接着对其返回值进行 `.then` 调用。
+
+[role="executable"]
+[source,javascript]
+----
+Promise.resolve(42).then(function(value){
+    console.log(value);
+});
+----
+
+<<Promise.resolve,Promise.resolve>>作为 `new Promise()` 的快捷方式，在进行promise对象的初始化或者编写测试代码的时候都非常方便。
+
+=== Thenable
+
+`Promise.resolve` 方法另一个作用就是将 <<Thenable,thenable>> 对象转换为promise对象。
+
+<<es6-promises,ES6 Promises>>里提到了<<Thenable,Thenable>>这个概念，简单来说它就是一个非常类似promise的东西。
+
+就像我们有时称具有 `.length` 方法的非数组对象为Array like一样，thenable指的是一个具有 `.then` 方法的对象。
+
+这种将thenable对象转换为promise对象的机制要求thenable对象所拥有的 `then` 方法应该和Promise所拥有的 `then` 方法具有同样的功能和处理过程，在将thenable对象转换为promise对象的时候，还会巧妙的利用thenable对象原来具有的 `then` 方法。
+
+到底什么样的对象能算是thenable的呢，最简单的例子就是
+https://api.jquery.com/jQuery.ajax/[jQuery.ajax()]，它的返回值就是thenable的。
+
+因为`jQuery.ajax()` 的返回值是 http://api.jquery.com/jQuery.ajax/#jqXHR[jqXHR Object] 对象，这个对象具有 `.then` 方法。
+
+[source,javascript]
+$.ajax('/json/comment.json');// => 拥有 `.then` 方法的对象
+
+这个thenable的对象可以使用 `Promise.resolve` 来转换为一个promise对象。
+
+变成了promise对象的话，就能直接使用 `then` 或者 `catch` 等这些在
+<<es6-promises,ES6 Promises>>里定义的方法了。
+
+[source,javascript]
+.将thenable对象转换promise对象
+----
+var promise = Promise.resolve($.ajax('/json/comment.json'));// => promise对象
+promise.then(function(value){
+   console.log(value);
+});
+----
+
+[WARNING]
+.jQuery和thenable
+====
+https://api.jquery.com/jQuery.ajax/[jQuery.ajax()]的返回值是一个具有 `.then` 方法的 http://api.jquery.com/jQuery.ajax/#jqXHR[jqXHR Object]对象，这个对象继承了来自 http://api.jquery.com/category/deferred-object/[Deferred Object] 的方法和属性。
+
+但是Deferred Object并没有遵循<<promises-aplus,Promises/A+>>或<<es6-promises,ES6 Promises>>标准，所以即使看上去这个对象转换成了一个promise对象，但是会出现缺失部分信息的问题。
+
+这个问题的根源在于jQuery的 http://api.jquery.com/category/deferred-object/[Deferred Object] 的 `then` 方法机制与promise不同。
+
+所以我们应该注意，即使一个对象具有 `.then` 方法，也不一定就能作为ES6 Promises对象使用。
+
+* http://www.html5rocks.com/en/tutorials/es6/promises/#toc-lib-compatibility[JavaScript Promises: There and back again - HTML5 Rocks]
+* http://domenic.me/2012/10/14/youre-missing-the-point-of-promises/[You&#39;re Missing the Point of Promises]
+* https://twitter.com/hirano_y_aa/status/398851806383452160[https://twitter.com/hirano_y_aa/status/398851806383452160]
+====
+
+`Promise.resolve` 只使用了共通的方法 `then` ，提供了在不同的类库之间进行promise对象互相转换的功能。
+
+这种转换为thenable的功能在之前是通过使用 `Promise.cast` 来完成的，从它的名字我们也不难想象它的功能是什么。
+
+除了在编写使用Promise的类库等软件时需要对Thenable有所了解之外，通常作为end-user使用的时候，我们可能不会用到此功能。
+
+[NOTE]
+====
+我们会在后面第4章的<<resolve-thenable,Promise.resolve和Thenable>>中进行详细的说明，介绍一下结合使用了Thenable和Promise.resolve的具体例子。
+====
+
+简单总结一下 `Promise.resolve` 方法的话，可以认为它的作用就是将传递给它的参数填充（Fulfilled）到promise对象后并返回这个promise对象。
+
+此外，Promise的很多处理内部也是使用了 `Promise.resolve` 算法将值转换为promise对象后再进行处理的。

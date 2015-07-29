@@ -1,0 +1,158 @@
+[[promise-sequence]]
+== 使用Promise进行顺序（sequence）处理
+
+在第2章 <<ch2-promise-all, Promise.all>> 中，我们已经学习了如何让多个promise对象同时开始执行的方法。
+
+但是 `Promise.all` 方法会同时运行多个promise对象，如果想进行在A处理完成之后再开始B的处理，对于这种顺序执行的话 `Promise.all`就无能为力了。
+
+此外，在同一章的<<ch2-promise-and-array,Promise和数组>> 中，我们也介绍了一种效率不是特别高的，使用了 <<multiple-xhr.js,重复使用多个then的方法>> 来实现如何按顺序进行处理。
+
+在本小节中，我们将对如何在Promise中进行顺序处理进行介绍。
+
+=== 循环和顺序处理
+
+在 <<multiple-xhr.js,重复使用多个then的方法>> 中的实现方法如下。
+
+[role="executable"]
+[source,javascript]
+----
+include::../Ch2_HowToWrite/embed/embed-multiple-xhr.js[]
+// 运行示例
+main().then(function (value) {
+    console.log(value);
+}).catch(function(error){
+    console.error(error);
+});
+----
+
+使用这种写法的话那么随着 `request` 中元素数量的增加，我们也需要不断增加对 `then` 方法的调用
+
+因此，如果我们将处理内容统一放到数组里，再配合for循环进行处理的话，那么处理内容的增加将不会再带来什么问题。首先我们就使用for循环来完成和前面同样的处理。
+
+[role="executable"]
+[source,javascript]
+[[promise-foreach-xhr.js]]
+.promise-foreach-xhr.js
+----
+include::embed/embed-promise-foreach-xhr.js[]
+// 运行示例
+main().then(function (value) {
+    console.log(value);
+}).catch(function(error){
+    console.error(error);
+});
+----
+
+使用for循环的时候，如同我们在 <<then-return-new-promise,专栏: 每次调用then都会返回一个新创建的promise对象>> 以及 <<promise-and-method-chain,Promise和方法链>> 中学到的那样，每次调用 <<promise.then, Promise#then>> 方法都会返回一个新的promise对象。
+
+因此类似 `promise = promise.then(task).then(pushValue);` 的代码就是通过不断对promise进行处理，不断的覆盖 `promise` 变量的值，以达到对promise对象的累积处理效果。
+
+但是这种方法需要 `promise` 这个临时变量，从代码质量上来说显得不那么简洁。
+
+如果将这种循环写法改用 `Array.prototype.reduce` 的话，那么代码就会变得聪明多了。
+
+=== Promise chain和reduce
+
+如果将上面的代码用 `Array.prototype.reduce` 重写的话，会像下面一样。
+
+[role="executable"]
+[source,javascript]
+[[promise-reduce-xhr.js]]
+.promise-reduce-xhr.js
+----
+include::embed/embed-promise-reduce-xhr.js[]
+// 运行示例
+main().then(function (value) {
+    console.log(value);
+}).catch(function(error){
+    console.error(error);
+});
+----
+
+这段代码中除了 `main` 函数之外的其他处理都和使用for循环的时候相同。
+
+`Array.prototype.reduce` 的第二个参数用来设置盛放计算结果的初始值。在这个例子中， `Promise.resolve()` 会赋值给 `promise` ，此时的 `task` 为 `request.comment` 。
+
+在reduce中第一个参数中被 `return` 的值，则会被赋值为下次循环时的 `promise` 。也就是说，通过返回由 `then` 创建的新的promise对象，就实现了和for循环类似的 <<promise-chain, Promise chain>> 了。
+
+[NOTE]
+=====
+下面是关于 `Array.prototype.reduce` 的详细说明。
+
+* https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce[Array.prototype.reduce() - JavaScript | MDN]
+* http://glide.so/azu/6919649[azu / Array.prototype.reduce Dance - Glide]
+=====
+
+使用reduce和for循环不同的地方是reduce不再需要临时变量 `promise` 了，因此也不用编写 `promise = promise.then(task).then(pushValue);` 这样冗长的代码了，这是非常大的进步。
+
+虽然 `Array.prototype.reduce` 非常适合用来在Promise中进行顺序处理，但是上面的代码有可能让人难以理解它是如何工作的。
+
+因此我们再来编写一个名为 `sequenceTasks` 的函数，它接收一个数组作为参数，数组里面存放的是要进行的处理Task。
+
+从下面的调用代码中我们可以非常容易的从其函数名想到，该函数的功能是对 `tasks` 中的处理进行顺序执行了。
+
+[source,javascript]
+----
+var tasks = [request.comment, request.people];
+sequenceTasks(tasks);
+----
+
+=== 定义进行顺序处理的函数
+
+基本上我们只需要基于 <<promise-reduce-xhr.js,使用reduce的方法>> 重构出一个函数。
+
+[source,javascript]
+[[promise-sequence.js]]
+.promise-sequence.js
+----
+include::embed/embed-promise-sequence.js[]
+----
+
+需要注意的一点是，和 `Promise.all` 等不同，这个函数接收的参数是一个函数的数组。
+
+为什么传给这个函数的不是一个promise对象的数组呢？这是因为promise对象创建的时候，XHR已经开始执行了，因此再对这些promise对象进行顺序处理的话就不能正常工作了。
+
+因此 `sequenceTasks` 将函数(该函数返回一个promise对象)的数组作为参数。
+
+最后，使用 `sequenceTasks` 重写最开始的例子的话，如下所示。
+
+[role="executable"]
+[source,javascript]
+[[promise-sequence-xhr.js]]
+.promise-sequence-xhr.js
+----
+include::embed/embed-promise-sequence-xhr.js[]
+// 运行示例
+main().then(function (value) {
+    console.log(value);
+}).catch(function(error){
+    console.error(error);
+});
+----
+
+怎样， `main()` 中的流程是不是更清晰易懂了。
+
+如上所述，在Promise中，我们可以选择多种方法来实现处理的按顺序执行。
+
+* <<multiple-xhr.js, 循环使用then调用的方法>>
+* <<promise-foreach-xhr.js, 使用for循环的方法>>
+* <<promise-reduce-xhr.js, 使用reduce的方法>>
+* <<promise-sequence.js, 分离出顺序处理函数的方法>>
+
+但是，这些方法都是基于JavaScript中对数组及进行操作的for循环或 `forEach` 等，本质上并无大区别。
+因此从一定程度上来说，在处理Promise的时候，将大块的处理分成小函数来实现是一个非常好的实践。
+
+=== 总结
+
+在本小节中，我们对如何在Promise中进行和 <<Promise.all, `Promise.all`>> 相反，按顺序让promise一个个进行处理的实现方式进行了介绍。
+
+为了实现顺序处理，我们也对从过程风格的编码方式到自定义顺序处理函数的方式等实现方式进行了介绍，也再次强调了在Promise领域我们应遵循将处理按照函数进行划分的基本原则。
+
+在Promise中如果还使用了Promise chain将多个处理连接起来的话，那么还可能使源代码中的一条语句变得很长。
+
+这时候如果我们回想一下这些编程的基本原则进行函数拆分的话，代码整体结构会变得非常清晰。
+
+此外,Promise的构造函数以及 `then` 都是高阶函数，如果将处理分割为函数的话，还能得到对函数进行灵活组合使用的副作用，意识到这一点对我们也会有一些帮助的。
+
+[NOTE]
+高阶函数指的是一个函数可以接受其参数为函数对象的实例

@@ -1,0 +1,22 @@
+[[promise-glossary]]
+= 用語集
+
+Promises::
+    Promise规范自身
+promise对象::
+    promise对象指的是 `Promise` 实例对象
+[[es6-promises]]
+ES6 Promises::
+    如果想明确表示使用 http://people.mozilla.org/~jorendorff/es6-draft.html#sec-promise-objects[ECMAScript 6th Edition] 的话，可以使用_ES6_作为前缀（prefix）
+[[promises-aplus]]
+Promises/A+::
+    http://promises-aplus.github.io/promises-spec/[Promises/A+]。
+    这是ES6 Promises的前身，是一个社区规范，它和 ES6 Promises 有很多共通的内容。
+[[Thenable]]
+Thenable::
+    类Promise对象。
+    拥有名为`.then`方法的对象。
+[[promise-chain]]
+promise chain::
+    指使用 `then` 或者 `catch` 方法将promise对象连接起来的行为。
+    此用语只是在本书中的说法，而不是在 <<es6-promises,ES6 Promises>> 中定义的官方用语。

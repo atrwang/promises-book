@@ -1,0 +1,104 @@
+[[then-return-new-promise]]
+== 专栏: 每次调用then都会返回一个新创建的promise对象
+
+从代码上乍一看， `aPromise.then(...).catch(...)` 像是针对最初的 `aPromise` 对象进行了一连串的方法链调用。
+
+然而实际上不管是 `then` 还是 `catch` 方法调用，都返回了一个新的promise对象。
+
+下面我们就来看看如何确认这两个方法返回的到底是不是新的promise对象。
+
+[role="executable"]
+[source,javascript]
+----
+var aPromise = new Promise(function (resolve) {
+    resolve(100);
+});
+var thenPromise = aPromise.then(function (value) {
+    console.log(value);
+});
+var catchPromise = thenPromise.catch(function (error) {
+    console.error(error);
+});
+console.log(aPromise !== thenPromise); // => true
+console.log(thenPromise !== catchPromise);// => true
+----
+
+`===` 是严格相等比较运算符，我们可以看出这三个对象都是互不相同的，这也就证明了 `then` 和 `catch` 都返回了和调用者不同的promise对象。
+
+image::img/then_catch.png[Then Catch flow]
+
+我们在对Promise进行扩展的时候需要牢牢记住这一点，否则稍不留神就有可能对错误的promise对象进行了处理。
+
+如果我们知道了 `then` 方法每次都会创建并返回一个新的promise对象的话，那么我们就应该不难理解下面代码中对 `then` 的使用方式上的差别了。
+
+[role="executable"]
+[source,javascript]
+----
+// 1: 对同一个promise对象同时调用 `then` 方法
+var aPromise = new Promise(function (resolve) {
+    resolve(100);
+});
+aPromise.then(function (value) {
+    return value * 2;
+});
+aPromise.then(function (value) {
+    return value * 2;
+});
+aPromise.then(function (value) {
+    console.log("1: " + value); // => 100
+})
+
+// vs
+
+// 2: 对 `then` 进行 promise chain 方式进行调用
+var bPromise = new Promise(function (resolve) {
+    resolve(100);
+});
+bPromise.then(function (value) {
+    return value * 2;
+}).then(function (value) {
+    return value * 2;
+}).then(function (value) {
+    console.log("2: " + value); // => 100 * 2 * 2
+});
+----
+
+第1种写法中并没有使用promise的方法链方式，这在Promise中是应该极力避免的写法。这种写法中的 `then` 调用几乎是在同时开始执行的，而且传给每个 `then` 方法的 `value` 值都是 `100` 。
+
+第2中写法则采用了方法链的方式将多个 `then` 方法调用串连在了一起，各函数也会严格按照 resolve -> then -> then -> then 的顺序执行，并且传给每个 `then` 方法的 `value` 的值都是前一个promise对象通过 `return` 返回的值。
+
+下面是一个由方法1中的 `then` 用法导致的比较容易出现的很有代表性的反模式的例子。
+
+[source,javascript]
+.✘ `then` 的错误使用方法
+----
+function badAsyncCall() {
+    var promise = Promise.resolve();
+    promise.then(function() {
+        // 任意处理
+        return newVar;
+    });
+    return promise;
+}
+----
+
+这种写法有很多问题，首先在 `promise.then` 中产生的异常不会被外部捕获，此外，也不能得到 `then` 的返回值，即使其有返回值。
+
+由于每次 `promise.then` 调用都会返回一个新创建的promise对象，因此需要像上述方式2那样，采用promise chain的方式将调用进行链式化，修改后的代码如下所示。
+
+[source,javascript]
+.`then` 返回返回新创建的promise对象
+----
+function anAsyncCall() {
+    var promise = Promise.resolve();
+    return promise.then(function() {
+        // 任意处理
+        return newVar;
+    });
+}
+----
+
+关于这些反模式，详细内容可以参考 http://taoofcode.net/promise-anti-patterns/[Promise Anti-patterns] 。
+
+这种函数的行为贯穿在Promise整体之中，
+包括我们后面要进行说明的 <<ch2-promise-all,Promise.all>> 和 <<ch2-promise-race,Promise.race>> ，他们都会接收一个promise对象为参数，并返回一个和接收参数不同的、新的promise对象。
